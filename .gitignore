@@ -1,0 +1,25 @@
+# Node modules
+admin/node_modules/
+
+# Build outputs (keep dist/ committed for easy WordPress deployment)
+# Uncomment if you prefer to build fresh each time:
+# admin/dist/
+
+# Plugin zip archives (generated, not committed)
+*.zip
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

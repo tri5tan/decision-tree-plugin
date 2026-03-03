@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wizard – local dev</title>
+  <link rel="stylesheet" href="wizard.css" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+    .dev-bar { background: #1e293b; color: #94a3b8; font-size: 12px; padding: 8px 14px;
+               border-radius: 6px; margin-bottom: 28px; display: flex; align-items: center; gap: 12px; }
+    .dev-bar strong { color: #f1f5f9; }
+    .dev-bar select { font-size: 12px; padding: 3px 6px; border-radius: 3px; border: none; }
+  </style>
+</head>
+<body>
+
+  <div class="dev-bar">
+    <strong>🛠 Wizard dev mode</strong>
+    <label>Module:
+      <select id="module-picker">
+        <option value="1">Dog Control (mock)</option>
+        <option value="2">Simple 2-step (mock)</option>
+      </select>
+    </label>
+    <span>— no WordPress connection, data is local</span>
+  </div>
+
+  <!-- The wizard mounts here. data-module-id is passed to the (mocked) fetch. -->
+  <div class="ct-wizard" data-module-id="1"></div>
+
+  <script>
+    // ── Mock tree data ────────────────────────────────────────────────────────
+    var MOCK_TREES = {
+
+      // Module 1: Dog Control (mirrors devData.js from the React admin)
+      "1": {
+        rootNodeId: "sm-101",
+        nodes: [
+          { id: "sm-101", data: { postId: 101, label: "Classify request type",
+            question: "Is the request for service a request for information?",
+            content: "", rawContent: "", callout: null, legislation: [], isTerminal: false, linkStatus: "complete" } },
+          { id: "sm-102", data: { postId: 102, label: "Information request pathway",
+            question: "Does the requester identify as Māori or an iwi entity?",
+            content: "", rawContent: "", callout: "Check the roll first before escalating.", legislation: [], isTerminal: false, linkStatus: "complete" } },
+          { id: "sm-103", data: { postId: 103, label: "Standard service request",
+            question: "Has the dog been impounded before?",
+            content: "", rawContent: "", callout: null, legislation: [], isTerminal: false, linkStatus: "complete" } },
+          { id: "sm-104", data: { postId: 104, label: "Iwi information pathway",
+            question: null, content: "<p>Follow the iwi-specific protocol. Contact the Treaty officer and prepare the formal response template within 5 working days.</p>",
+            rawContent: "", callout: "Always copy the Treaty officer on correspondence.", legislation: [
+              { act: "Local Government Official Information Act 1987", section: "s17", url: "https://legislation.govt.nz/act/local/1987/0174" }
+            ], isTerminal: true, linkStatus: "terminal" } },
+          { id: "sm-105", data: { postId: 105, label: "General information response",
+            question: null, content: "<p>Send the standard information response within 20 working days. Log the request in the CRM.</p>",
+            rawContent: "", callout: null, legislation: [], isTerminal: true, linkStatus: "terminal" } },
+          { id: "sm-106", data: { postId: 106, label: "Repeat impoundment process",
+            question: null, content: "<p>Issue a formal notice and schedule a hearing. Refer to the Dog Control Act 1996 s29 for repeat offences.</p>",
+            rawContent: "", callout: "Check for any outstanding infringement fees before proceeding.",
+            legislation: [{ act: "Dog Control Act 1996", section: "s29", url: "https://legislation.govt.nz/act/public/1996/0013" }],
+            isTerminal: true, linkStatus: "terminal" } },
+          { id: "sm-107", data: { postId: 107, label: "First impoundment process",
+            question: null, content: "<p>Issue an infringement notice and release the dog to the owner upon payment of the release fee.</p>",
+            rawContent: "", callout: null, legislation: [], isTerminal: true, linkStatus: "terminal" } }
+        ],
+        edges: [
+          { id: "e-101-102-yes", source: "sm-101", target: "sm-102", label: "Yes", answer: "Yes" },
+          { id: "e-101-103-no",  source: "sm-101", target: "sm-103", label: "No",  answer: "No"  },
+          { id: "e-102-104-yes", source: "sm-102", target: "sm-104", label: "Yes", answer: "Yes" },
+          { id: "e-102-105-no",  source: "sm-102", target: "sm-105", label: "No",  answer: "No"  },
+          { id: "e-103-106-yes", source: "sm-103", target: "sm-106", label: "Yes", answer: "Yes" },
+          { id: "e-103-107-no",  source: "sm-103", target: "sm-107", label: "No",  answer: "No"  }
+        ]
+      },
+
+      // Module 2: minimal 2-step tree for quick testing
+      "2": {
+        rootNodeId: "sm-201",
+        nodes: [
+          { id: "sm-201", data: { postId: 201, label: "Eligibility check",
+            question: "Is the applicant a registered NZ business?",
+            content: "", rawContent: "", callout: null, legislation: [], isTerminal: false, linkStatus: "complete" } },
+          { id: "sm-202", data: { postId: 202, label: "Eligible – proceed",
+            question: null, content: "<p>Applicant is eligible. Issue the approval and notify the team.</p>",
+            rawContent: "", callout: "Keep a copy of the registration certificate on file.", legislation: [], isTerminal: true, linkStatus: "terminal" } },
+          { id: "sm-203", data: { postId: 203, label: "Not eligible",
+            question: null, content: "<p>Applicant does not meet the eligibility criteria. Send the standard decline letter.</p>",
+            rawContent: "", callout: null, legislation: [], isTerminal: true, linkStatus: "terminal" } }
+        ],
+        edges: [
+          { id: "e-201-202-yes", source: "sm-201", target: "sm-202", label: "Yes", answer: "Yes" },
+          { id: "e-201-203-no",  source: "sm-201", target: "sm-203", label: "No",  answer: "No"  }
+        ]
+      }
+    };
+
+    // ── Inject REST URL config (wizard.js reads this) ─────────────────────────
+    window.ctDTWizard = { restUrl: '/mock-api/ct/v1/' };
+
+    // ── Patch fetch to intercept tree requests ────────────────────────────────
+    var _realFetch = window.fetch.bind(window);
+    window.fetch = function(url, opts) {
+      var match = String(url).match(/\/tree\/(\d+)/);
+      if (match) {
+        var id   = match[1];
+        var tree = MOCK_TREES[id];
+        if (tree) {
+          return Promise.resolve({
+            ok:   true,
+            json: function() { return Promise.resolve(tree); }
+          });
+        }
+        return Promise.resolve({
+          ok:   false,
+          json: function() { return Promise.resolve({ code: 'not_found', message: 'Mock tree not found.' }); }
+        });
+      }
+      return _realFetch(url, opts);
+    };
+
+    // ── Module picker swaps the wizard container ──────────────────────────────
+    document.getElementById('module-picker').addEventListener('change', function() {
+      var container = document.querySelector('.ct-wizard');
+      // Reset init flag so wizard.js will re-run
+      delete container.dataset.ctWizardInit;
+      container.innerHTML = '';
+      container.dataset.moduleId = this.value;
+      // Manually trigger init (wizard.js already ran DOMContentLoaded, call directly)
+      if (window.__ctInitWizard) window.__ctInitWizard(container);
+    });
+  </script>
+
+  <script src="wizard.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,219 @@
+/*
+ * ct-decision-tree — front-end wizard base styles
+ *
+ * These are intentionally minimal and override-friendly.
+ * All class names are prefixed ct-wizard__ for specificity safety.
+ * Apply custom CSS in Bricks Builder or a child theme to match your design system.
+ *
+ * CSS custom properties (set on .ct-wizard or a parent):
+ *   --ct-primary        button border + hover background   (default: #2c6e49)
+ *   --ct-callout-bg     best practice callout background   (default: #f0f7ee)
+ *   --ct-callout-accent callout left border + label colour (default: #2c6e49)
+ *   --ct-leg-bg         legislation block background       (default: #f5f5f5)
+ *   --ct-link           legislation link colour            (default: #2563eb)
+ */
+
+.ct-wizard {
+  --ct-primary:        #2c6e49;
+  --ct-secondary:      #a97f77;
+  --ct-callout-bg:     #f0f7ee;
+  --ct-callout-accent: #2c6e49;
+  --ct-leg-bg:         #f5f5f5;
+  --ct-link:           #2563eb;
+
+  font-family: inherit;
+  max-width: 720px;
+  box-sizing: border-box;
+}
+
+.ct-wizard--loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+
+
+/* ── Navigation row ───────────────────────────────────────────────────────── */
+
+.ct-wizard__nav {
+  margin: 1.5rem 0 1rem 0;
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.ct-wizard__back,
+.ct-wizard__restart {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  /* text-decoration: underline; */
+  text-underline-offset: 2px;
+}
+
+.ct-wizard__back:hover,
+.ct-wizard__restart:hover {
+  color: #333;
+}
+
+/* ── Breadcrumb trail ─────────────────────────────────────────────────────── */
+
+.ct-wizard__trail {
+  font-size: 0.83em;
+  color: #888;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.ct-wizard__crumb {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: #2c6e49;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ct-wizard__crumb:hover {
+  color: #1a4530;
+}
+
+/* ── Step heading ─────────────────────────────────────────────────────────── */
+
+.ct-wizard__heading {
+  margin: 0 0 0.6rem;
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+
+/* ── Question prompt ──────────────────────────────────────────────────────── */
+
+.ct-wizard__question {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 1.1rem;
+  line-height: 1.5;
+}
+
+/* ── Choice buttons ───────────────────────────────────────────────────────── */
+
+.ct-wizard__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1.4rem;
+}
+
+.ct-wizard__choice {
+  padding: 0.55rem 1.3rem;
+  border: 2px solid var(--ct-primary);
+  background: transparent;
+  color: var(--ct-primary);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ct-wizard__choice.yes {
+  background: var(--ct-primary);
+  color: #fff;
+}
+.ct-wizard__choice.no {
+  background: var(--ct-secondary);
+  color: #fff;
+}
+
+.ct-wizard__choice:hover,
+.ct-wizard__choice:focus-visible {
+  background: var(--ct-primary);
+  color: #fff;
+  outline: none;
+}
+
+/* ── Terminal node: body content ─────────────────────────────────────────── */
+
+.ct-wizard__content {
+  margin-bottom: 1.25rem;
+  line-height: 1.65;
+}
+
+/* ── Best practice callout ────────────────────────────────────────────────── */
+
+.ct-wizard__callout {
+  border-left: 4px solid var(--ct-callout-accent);
+  background: var(--ct-callout-bg);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+  border-radius: 0 4px 4px 0;
+}
+
+.ct-wizard__callout strong {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ct-callout-accent);
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.ct-wizard__callout p {
+  margin: 0;
+  line-height: 1.55;
+  color: #1a4530;
+}
+
+/* ── Relevant legislation ─────────────────────────────────────────────────── */
+
+.ct-wizard__legislation {
+  background: var(--ct-leg-bg);
+  border-radius: 4px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.ct-wizard__legislation h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #666;
+  font-weight: 600;
+}
+
+.ct-wizard__legislation ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ct-wizard__legislation li {
+  margin-bottom: 0.35rem;
+}
+
+.ct-wizard__legislation a {
+  color: var(--ct-link);
+  text-decoration: underline;
+}
+
+.ct-wizard__legislation a:hover {
+  text-decoration: none;
+}
+
+
+
+/* ── Error ────────────────────────────────────────────────────────────────── */
+
+.ct-wizard__error {
+  color: #c0392b;
+  font-size: 0.9rem;
+}
