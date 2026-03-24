@@ -4,14 +4,14 @@
  *
  * Navigate to: WP Admin → Knowledge Base Module → Tree Editor
  *
- * The React app (admin/dist/admin.js) mounts into #ct-decision-tree-admin.
+ * The React app (admin/dist/admin.js) mounts into #decision-tree-admin.
  * Module selection and tree rendering happen entirely in the React layer via
- * the /wp-json/ct/v1/modules and /wp-json/ct/v1/tree/{id} endpoints.
+ * the /wp-json/dt/v1/modules and /wp-json/dt/v1/tree/{id} endpoints.
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class CT_DT_Admin_Page {
+class DT_Admin_Page {
 
     public function __construct() {
         add_action( 'admin_menu',            [ $this, 'register_admin_page' ] );
@@ -19,50 +19,67 @@ class CT_DT_Admin_Page {
     }
 
     public function register_admin_page() {
-        add_submenu_page(
-            'edit.php?post_type=ct-kb-module', // parent: the Module CPT list table
-            'Decision Tree Editor',              // page title
-            'Tree Editor',                       // menu label
-            'edit_posts',                      // capability
-            'ct-decision-tree',                // slug — used to identify the page
-            [ $this, 'render_admin_page' ]
-        );
+        $parent = decision_tree_get_admin_menu_parent();
+
+        if ( $parent ) {
+            add_submenu_page(
+                $parent,
+                'Decision Tree',
+                'Tree Editor',
+                'edit_posts',
+                'decision-tree-editor',
+                [ $this, 'render_admin_page' ]
+            );
+        } else {
+            add_menu_page(
+                'Decision Tree',
+                'Decision Tree',
+                'edit_posts',
+                'decision-tree-editor',
+                [ $this, 'render_admin_page' ],
+                'dashicons-networking',
+                58
+            );
+        }
     }
 
     public function render_admin_page() {
-        // The React app reads data-module-id to pre-select a module if passed via URL.
+        // The React app reads data-module-id from URL param if passed.
         $module_id = isset( $_GET['module_id'] ) ? absint( $_GET['module_id'] ) : 0;
-        echo '<div id="ct-decision-tree-admin" data-module-id="' . esc_attr( $module_id ) . '"></div>';
+        echo '<div id="decision-tree-admin" data-module-id="' . esc_attr( $module_id ) . '"></div>';
     }
 
-    public function enqueue_admin_assets() {
-        // Only load on our admin page.
-        if ( ! isset( $_GET['page'] ) || $_GET['page'] !== 'ct-decision-tree' ) return;
 
-        $dist = CT_DT_URL . 'admin/dist/';
+
+    public function enqueue_admin_assets() {
+        // Only load on the editor page.
+        if ( ! isset( $_GET['page'] ) || $_GET['page'] !== 'decision-tree-editor' ) return;
+
+        $dist = DT_URL . 'admin/dist/';
 
         // Enqueue standalone admin bundle (includes React + ReactFlow)
         wp_enqueue_script(
-            'ct-decision-tree-admin',
+            'decision-tree-admin',
             $dist . 'admin.js',
             [],
-            CT_DT_VERSION,
+            DT_VERSION,
             true
         );
 
         wp_enqueue_style(
-            'ct-decision-tree-admin',
-            $dist . 'admin-ct-decision-tree-admin.css',
+            'decision-tree-admin',
+            $dist . 'admin-decision-tree-admin.css',
             [],
-            CT_DT_VERSION
+            DT_VERSION
         );
 
-        // Make WP config available to the React app via window.ctDT.
-        wp_localize_script( 'ct-decision-tree-admin', 'ctDT', [
-            'restUrl'       => rest_url( 'ct/v1/' ),
-            'nonce'         => wp_create_nonce( 'wp_rest' ),
-            'editPostUrl'   => admin_url( 'post.php' ),
-            'subModulesUrl' => admin_url( 'edit.php?post_type=ct-kb-submodules' ),
+        // Make WP config available to the React app via window.dt.
+        wp_localize_script( 'decision-tree-admin', 'dt', [
+            'restUrl'         => rest_url( 'dt/v1/' ),
+            'nonce'           => wp_create_nonce( 'wp_rest' ),
+            'editPostUrl'     => admin_url( 'post.php' ),
+            'subModulesUrl'   => admin_url( 'edit.php?post_type=' . decision_tree_get_submodule_post_type() ),
+            'fieldGroupId'    => decision_tree_get_field_group_id(),
         ] );
     }
 }

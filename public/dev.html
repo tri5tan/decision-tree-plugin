@@ -27,7 +27,7 @@
   </div>
 
   <!-- The wizard mounts here. data-module-id is passed to the (mocked) fetch. -->
-  <div class="ct-wizard" data-module-id="1"></div>
+  <div class="dt-wizard" data-module-id="1"></div>
 
   <script>
     // ── Mock tree data ────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@
     };
 
     // ── Inject REST URL config (wizard.js reads this) ─────────────────────────
-    window.ctDTWizard = { restUrl: '/mock-api/ct/v1/' };
+    window.dtWizard = { restUrl: '/mock-api/dt/v1/' };
 
     // ── Patch fetch to intercept tree requests ────────────────────────────────
     var _realFetch = window.fetch.bind(window);
@@ -120,7 +120,7 @@
 
     // ── Module picker swaps the wizard container ──────────────────────────────
     document.getElementById('module-picker').addEventListener('change', function() {
-      var container = document.querySelector('.ct-wizard');
+      var container = document.querySelector('.dt-wizard');
       // Reset init flag so wizard.js will re-run
       delete container.dataset.ctWizardInit;
       container.innerHTML = '';

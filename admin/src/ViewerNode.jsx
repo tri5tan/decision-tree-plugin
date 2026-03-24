@@ -5,7 +5,27 @@ import { STATUS_COLORS, STATUS_META } from './nodeStatus';
 // Wider nodes for expanded content view
 export const VIEWER_NODE_W = 400;
 
-// ─── View-only node with full content ────────────────────────────────────────
+function truncate(str, n) {
+  return str && str.length > n ? str.slice(0, n - 1) + '\u2026' : (str || '');
+}
+
+function Badge({ children, color = '#666' }) {
+  return (
+    <span style={{
+      background: '#deffe1',
+      color: '#404040',
+      borderRadius: 3,
+      padding: '2px 6px 2px 4px',
+      fontSize: 10,
+      whiteSpace: 'nowrap',
+      fontWeight: 600,
+    }}>
+      {children}
+    </span>
+  );
+}
+
+// ─── View-only node with truncated content ───────────────────────────────────
 const ViewerNode = memo(function ViewerNode({ data, selected }) {
   const statusKey = data.isOrphan ? 'orphan'
     : data.isRoot   ? 'start'
@@ -67,111 +87,49 @@ const ViewerNode = memo(function ViewerNode({ data, selected }) {
         {data.label}
       </div>
 
-      {/* Full question (not snippet) */}
+      {/* Question */}
       {data.question && (
         <div style={{
-          fontSize: 12, 
+          fontSize: 11, 
           color: '#555', 
           fontStyle: 'italic',
-          lineHeight: 1.4, 
-          marginBottom: 8,
-          borderLeft: '3px solid #e5e7eb', 
-          paddingLeft: 8,
-          background: '#fafafa',
-          padding: '8px',
-          borderRadius: 4,
+          lineHeight: 1.35, 
+          marginBottom: 6,
+          borderLeft: '2px solid #e5e7eb', 
+          paddingLeft: 6,
         }}>
           {data.question}
         </div>
       )}
 
-      {/* Full body content (HTML) */}
+      {/* Body snippet (truncated) */}
       {data.content && (
-        <div 
-          style={{
-            fontSize: 11, 
-            color: '#666',
-            lineHeight: 1.5, 
-            marginBottom: 8,
-            borderLeft: '2px solid #e5e7eb', 
-            paddingLeft: 8,
-          }}
-          dangerouslySetInnerHTML={{ __html: data.content }}
-        />
+        <div style={{
+          fontSize: 11, 
+          color: '#666',
+          lineHeight: 1.35, 
+          marginBottom: 6,
+          borderLeft: '2px solid #e5e7eb', 
+          paddingLeft: 6,
+        }}>
+          {truncate(data.content.replace(/<[^>]+>/g, ''), 80)}
+        </div>
       )}
 
-      {/* Best practice callout (expanded) */}
-      {data.callout && (
-        <div style={{
-          background: '#f0f7ee',
-          border: '1px solid #2c6e49',
-          borderRadius: 4,
-          padding: '8px 10px',
-          marginBottom: 8,
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            marginBottom: 4,
-          }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="#2c6e49">
+      {/* Footer badges (like TreeEditor) */}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+        {data.legislation?.length > 0 && (
+          <Badge>⚖ {data.legislation.length}</Badge>
+        )}
+        {data.callout && (
+          <Badge>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ verticalAlign: 'middle', marginRight: 3, marginBottom: 1 }}>
               <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/>
             </svg>
-            <strong style={{ fontSize: 10, color: '#2c6e49', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Best Practice
-            </strong>
-          </div>
-          <div style={{ fontSize: 11, color: '#333', lineHeight: 1.4 }}>
-            {data.callout}
-          </div>
-        </div>
-      )}
-
-      {/* Legislation (expanded list) */}
-      {data.legislation && data.legislation.length > 0 && (
-        <div style={{
-          background: '#f5f5f5',
-          border: '1px solid #d0d0d0',
-          borderRadius: 4,
-          padding: '8px 10px',
-        }}>
-          <div style={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: '#666',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            marginBottom: 6,
-          }}>
-            ⚖ Relevant Legislation
-          </div>
-          <ul style={{
-            margin: 0,
-            padding: 0,
-            paddingLeft: 18,
-            fontSize: 11,
-            color: '#444',
-            lineHeight: 1.6,
-          }}>
-            {data.legislation.map((leg, i) => (
-              <li key={i} style={{ marginBottom: 3 }}>
-                <a 
-                  href={leg.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  style={{
-                    color: '#2563eb',
-                    textDecoration: 'none',
-                  }}
-                >
-                  {leg.act}{leg.section ? ` — ${leg.section}` : ''}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+            Best practise
+          </Badge>
+        )}
+      </div>
     </div>
   );
 });

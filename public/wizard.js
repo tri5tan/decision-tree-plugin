@@ -1,26 +1,26 @@
 /**
- * ct-decision-tree — front-end wizard
+ * decision-tree — front-end wizard
  *
- * Mounts into every <div class="ct-wizard" data-module-id="..."> on the page.
- * Fetches the tree JSON from /wp-json/ct/v1/tree/{module_id} once, stores it
+ * Mounts into every <div class="dt-wizard" data-module-id="..."> on the page.
+ * Fetches the tree JSON from /wp-json/dt/v1/tree/{module_id} once, stores it
  * in memory, and drives a step-by-step UI without further network requests.
  *
- * CSS class reference (all prefixed ct-wizard__ — override in Bricks/child theme):
- *   .ct-wizard              wrapper div (output by shortcode)
- *   .ct-wizard__trail       breadcrumb trail of visited step titles
- *   .ct-wizard__crumb       individual breadcrumb item
- *   .ct-wizard__heading     step title (<h3>)
- *   .ct-wizard__question    the yes/no question prompt (<p>)
- *   .ct-wizard__choices     button group wrapper
- *   .ct-wizard__choice      individual Yes/No button
- *   .ct-wizard__content     terminal node body copy
- *   .ct-wizard__callout     best practice callout block
- *   .ct-wizard__legislation legislation links block
- *   .ct-wizard__nav         back + restart button row
- *   .ct-wizard__back        back button
- *   .ct-wizard__restart     restart button
- *   .ct-wizard__error       error message
- *   .ct-wizard--loading     added to wrapper while fetching
+ * CSS class reference (all prefixed dt-wizard__ — override in Bricks/child theme):
+ *   .dt-wizard              wrapper div (output by shortcode)
+ *   .dt-wizard__trail       breadcrumb trail of visited step titles
+ *   .dt-wizard__crumb       individual breadcrumb item
+ *   .dt-wizard__heading     step title (<h3>)
+ *   .dt-wizard__question    the yes/no question prompt (<p>)
+ *   .dt-wizard__choices     button group wrapper
+ *   .dt-wizard__choice      individual Yes/No button
+ *   .dt-wizard__content     terminal node body copy
+ *   .dt-wizard__callout     best practice callout block
+ *   .dt-wizard__legislation legislation links block
+ *   .dt-wizard__nav         back + restart button row
+ *   .dt-wizard__back        back button
+ *   .dt-wizard__restart     restart button
+ *   .dt-wizard__error       error message
+ *   .dt-wizard--loading     added to wrapper while fetching
  */
 
 (function () {
@@ -30,14 +30,14 @@
     var moduleId = container.dataset.moduleId;
     if (!moduleId) return;
 
-    var restUrl = (window.ctDTWizard && window.ctDTWizard.restUrl) || '/wp-json/ct/v1/';
+    var restUrl = (window.dtWizard && window.dtWizard.restUrl) || '/wp-json/dt/v1/';
 
-    container.classList.add('ct-wizard--loading');
+    container.classList.add('dt-wizard--loading');
 
     fetch(restUrl + 'tree/' + moduleId)
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        container.classList.remove('ct-wizard--loading');
+        container.classList.remove('dt-wizard--loading');
         if (data.code) {
           renderError(container, 'Could not load decision tree.');
           return;
@@ -45,7 +45,7 @@
         runWizard(container, data);
       })
       .catch(function () {
-        container.classList.remove('ct-wizard--loading');
+        container.classList.remove('dt-wizard--loading');
         renderError(container, 'Could not load decision tree.');
       });
   }
@@ -73,14 +73,14 @@
 
       // Breadcrumb trail
       if (history.length > 0) {
-        var trail = el('div', 'ct-wizard__trail');
+        var trail = el('div', 'dt-wizard__trail');
         history.forEach(function (id, i) {
           var step  = nodeMap[id];
-          var crumb = el('span', 'ct-wizard__crumb');
+          var crumb = el('span', 'dt-wizard__crumb');
           crumb.textContent = step ? step.data.label : id;
           trail.appendChild(crumb);
           if (i < history.length - 1) {
-            var sep = el('span', 'ct-wizard__sep');
+            var sep = el('span', 'dt-wizard__sep');
             sep.textContent = ' › ';
             trail.appendChild(sep);
           }
@@ -89,7 +89,7 @@
       }
 
       // Step title
-      var heading = el('h3', 'ct-wizard__heading');
+      var heading = el('h3', 'dt-wizard__heading');
       heading.textContent = node.data.label;
       container.appendChild(heading);
 
@@ -101,9 +101,9 @@
 
       // Navigation row (back + restart)
       if (history.length > 0) {
-        var nav = el('div', 'ct-wizard__nav');
+        var nav = el('div', 'dt-wizard__nav');
 
-        var backBtn = el('button', 'ct-wizard__back');
+        var backBtn = el('button', 'dt-wizard__back');
         backBtn.textContent = '← Back';
         backBtn.type = 'button';
         backBtn.addEventListener('click', function () {
@@ -112,7 +112,7 @@
         });
         nav.appendChild(backBtn);
 
-        var restartBtn = el('button', 'ct-wizard__restart');
+        var restartBtn = el('button', 'dt-wizard__restart');
         restartBtn.textContent = 'Start again';
         restartBtn.type = 'button';
         restartBtn.addEventListener('click', function () {
@@ -132,13 +132,13 @@
   // ─── Render a decision step ─────────────────────────────────────────────────
   function renderQuestion(container, node, edgeMap) {
     if (node.data.question) {
-      var q = el('p', 'ct-wizard__question');
+      var q = el('p', 'dt-wizard__question');
       q.textContent = node.data.question;
       container.appendChild(q);
     }
 
     var edges   = edgeMap[node.id] || [];
-    var choices = el('div', 'ct-wizard__choices');
+    var choices = el('div', 'dt-wizard__choices');
 
     // Sort edges to ensure consistent Yes/No order (Yes first)
     edges.sort(function (a, b) {
@@ -150,7 +150,7 @@
     });
 
     edges.forEach(function (edge) {
-      var btn = el('button', 'ct-wizard__choice');
+      var btn = el('button', 'dt-wizard__choice');
       btn.textContent = edge.label;
       btn.type = 'button';
 
@@ -187,14 +187,14 @@
   function renderTerminal(container, node) {
     // Body content (HTML from WP the_content filter)
     if (node.data.content) {
-      var content = el('div', 'ct-wizard__content');
+      var content = el('div', 'dt-wizard__content');
       content.innerHTML = node.data.content;
       container.appendChild(content);
     }
 
     // Best practice callout
     if (node.data.callout) {
-      var callout      = el('div', 'ct-wizard__callout');
+      var callout      = el('div', 'dt-wizard__callout');
       var calloutLabel = el('strong');
       calloutLabel.textContent = 'BEST PRACTICE';
       callout.appendChild(calloutLabel);
@@ -206,7 +206,7 @@
 
     // Relevant legislation
     if (node.data.legislation && node.data.legislation.length > 0) {
-      var legBlock   = el('div', 'ct-wizard__legislation');
+      var legBlock   = el('div', 'dt-wizard__legislation');
       var legHeading = el('h4');
       legHeading.textContent = 'Relevant Legislation';
       legBlock.appendChild(legHeading);
@@ -236,7 +236,7 @@
 
   function renderError(container, message) {
     container.innerHTML = '';
-    var err = el('p', 'ct-wizard__error');
+    var err = el('p', 'dt-wizard__error');
     err.textContent = message;
     container.appendChild(err);
   }
@@ -267,13 +267,13 @@
 
         // Nav row — at the bottom, after all content and choices
       if (history.length > 0) {
-        var nav     = el('div', 'ct-wizard__nav');
-        var backBtn = el('button', 'ct-wizard__back');
+        var nav     = el('div', 'dt-wizard__nav');
+        var backBtn = el('button', 'dt-wizard__back');
         backBtn.type = 'button'; backBtn.textContent = '← Back';
         backBtn.addEventListener('click', function () { currentId = history.pop(); render(); });
         nav.appendChild(backBtn);
 
-        var restart = el('button', 'ct-wizard__restart');
+        var restart = el('button', 'dt-wizard__restart');
         restart.type = 'button'; restart.textContent = 'Start again';
         restart.addEventListener('click', function () { history = []; currentId = data.rootNodeId; render(); });
         nav.appendChild(restart);
@@ -282,10 +282,10 @@
 
       // Breadcrumb
       if (history.length > 0) {
-        var trail = el('div', 'ct-wizard__trail');
+        var trail = el('div', 'dt-wizard__trail');
         history.forEach(function (id, i) {
           var step  = nodeMap[id];
-          var crumb = el('span', 'ct-wizard__crumb');
+          var crumb = el('span', 'dt-wizard__crumb');
           crumb.textContent = step ? step.data.label : '…';
           trail.appendChild(crumb);
           if (i < history.length - 1) {
@@ -298,19 +298,19 @@
      
 
       // Heading
-      var heading = el('h3', 'ct-wizard__heading');
+      var heading = el('h3', 'dt-wizard__heading');
       heading.textContent = node.data.label;
       container.appendChild(heading);
 
       // Body content — shown for all nodes that have it (terminal or not)
       if (node.data.content) {
-        var content = el('div', 'ct-wizard__content');
+        var content = el('div', 'dt-wizard__content');
         content.innerHTML = node.data.content;
         container.appendChild(content);
       }
       // Callout — shown for all nodes that have it
       if (node.data.callout) {
-        var callout  = el('div', 'ct-wizard__callout');
+        var callout  = el('div', 'dt-wizard__callout');
         var clabel   = el('strong'); clabel.textContent = 'BEST PRACTICE';
         var ctext    = el('p');     ctext.textContent   = node.data.callout;
         callout.appendChild(clabel);
@@ -319,7 +319,7 @@
       }
       // Legislation — shown for all nodes that have it
       if (node.data.legislation && node.data.legislation.length > 0) {
-        var legBlock = el('div', 'ct-wizard__legislation');
+        var legBlock = el('div', 'dt-wizard__legislation');
         var legH     = el('h4'); legH.textContent = 'Relevant Legislation';
         legBlock.appendChild(legH);
         var legList  = el('ul');
@@ -337,14 +337,14 @@
       // Question + choices — only for non-terminal nodes, always after any content above
       if (!node.data.isTerminal) {
         if (node.data.question) {
-          var q = el('p', 'ct-wizard__question');
+          var q = el('p', 'dt-wizard__question');
           q.textContent = node.data.question;
           container.appendChild(q);
         }
         // Choice buttons
-        var choices = el('div', 'ct-wizard__choices');
+        var choices = el('div', 'dt-wizard__choices');
         (edgeMap[node.id] || []).forEach(function (edge) {
-          var btn = el('button', 'ct-wizard__choice');
+          var btn = el('button', 'dt-wizard__choice');
           btn.textContent = edge.label;
           btn.type = 'button';
           btn.dataset.answer = edge.answer || '';
@@ -374,23 +374,23 @@
     // Prevent double-init if called more than once on the same container.
     if (container.dataset.ctWizardInit) return;
     container.dataset.ctWizardInit = '1';
-    var restUrl = (window.ctDTWizard && window.ctDTWizard.restUrl) || '/wp-json/ct/v1/';
-    container.classList.add('ct-wizard--loading');
+    var restUrl = (window.dtWizard && window.dtWizard.restUrl) || '/wp-json/dt/v1/';
+    container.classList.add('dt-wizard--loading');
     fetch(restUrl + 'tree/' + moduleId)
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        container.classList.remove('ct-wizard--loading');
+        container.classList.remove('dt-wizard--loading');
         if (data.code) { renderError(container, 'Could not load decision tree.'); return; }
         runWizardFinal(container, data);
       })
       .catch(function () {
-        container.classList.remove('ct-wizard--loading');
+        container.classList.remove('dt-wizard--loading');
         renderError(container, 'Could not load decision tree.');
       });
   }
 
   function initAll() {
-    document.querySelectorAll('.ct-wizard').forEach(initWizardFinal);
+    document.querySelectorAll('.dt-wizard').forEach(initWizardFinal);
   }
 
   // Run immediately if DOM is already ready (handles race conditions with page builders).

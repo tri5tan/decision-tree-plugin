@@ -3,11 +3,11 @@
  * REST API endpoints for the decision tree plugin.
  *
  * Endpoints:
- *   GET /wp-json/ct/v1/modules          — list of all ct-kb-module posts (for admin dropdown)
- *   GET /wp-json/ct/v1/tree/{module_id} — nodes + edges for a given module's sub-modules
+ *   GET /wp-json/dt/v1/modules          — list of all main module posts (for admin dropdown)
+ *   GET /wp-json/dt/v1/tree/{module_id} — nodes + edges for a given module's sub-modules
  *
- * ACF field slugs used (all on ct-kb-submodules posts):
- *   sub_module_parent_module  relationship → ct-kb-module
+ * ACF field slugs used (all on the submodules posts):
+ *   sub_module_parent_module  relationship → main module
  *   question_text             text         → the yes/no question prompt (added by Rachel)
  *   decisions                 repeater     → decision rows (two per node: Yes and No)
  *     decisions[].decision_text    text          → button label
@@ -23,20 +23,20 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class CT_DT_Rest_API {
+class DT_Rest_API {
 
     public function __construct() {
         add_action( 'rest_api_init', [ $this, 'register_routes' ] );
     }
 
     public function register_routes() {
-        register_rest_route( 'ct/v1', '/modules', [
+        register_rest_route( 'dt/v1', '/modules', [
             'methods'             => 'GET',
             'callback'            => [ $this, 'get_modules' ],
             'permission_callback' => [ $this, 'check_permission' ],
         ] );
 
-        register_rest_route( 'ct/v1', '/tree/(?P<module_id>\d+)', [
+        register_rest_route( 'dt/v1', '/tree/(?P<module_id>\d+)', [
             'methods'             => 'GET',
             'callback'            => [ $this, 'get_tree' ],
             'permission_callback' => '__return_true', // read-only; public tree data
@@ -48,7 +48,7 @@ class CT_DT_Rest_API {
             ],
         ] );
 
-        register_rest_route( 'ct/v1', '/node/(?P<post_id>\d+)', [
+        register_rest_route( 'dt/v1', '/node/(?P<post_id>\d+)', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'update_node' ],
             'permission_callback' => [ $this, 'check_permission' ],
@@ -60,13 +60,13 @@ class CT_DT_Rest_API {
             ],
         ] );
 
-        register_rest_route( 'ct/v1', '/nodes', [
+        register_rest_route( 'dt/v1', '/nodes', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'create_node' ],
             'permission_callback' => [ $this, 'check_permission' ],
         ] );
 
-        register_rest_route( 'ct/v1', '/module/(?P<module_id>\d+)', [
+        register_rest_route( 'dt/v1', '/module/(?P<module_id>\d+)', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'set_module_settings' ],
             'permission_callback' => [ $this, 'check_permission' ],
@@ -78,7 +78,7 @@ class CT_DT_Rest_API {
             ],
         ] );
 
-        register_rest_route( 'ct/v1', '/node/(?P<post_id>\d+)', [
+        register_rest_route( 'dt/v1', '/node/(?P<post_id>\d+)', [
             'methods'             => 'DELETE',
             'callback'            => [ $this, 'delete_node' ],
             'permission_callback' => [ $this, 'check_permission' ],
@@ -89,22 +89,48 @@ class CT_DT_Rest_API {
                 ],
             ],
         ] );
+
+        register_rest_route( 'dt/v1', '/field-groups', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'get_field_groups' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+        ] );
+
+        register_rest_route( 'dt/v1', '/field-group', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'set_field_group' ],
+            'permission_callback' => [ $this, 'check_admin_permission' ],
+            'args'                => [
+                'id' => [
+                    'validate_callback' => fn( $v ) => is_string( $v ) && strlen( $v ) > 0,
+                    'sanitize_callback' => 'sanitize_text_field',
+                    'required'          => true,
+                ],
+            ],
+        ] );
     }
 
     /**
-     * Only logged-in editors can fetch the module list (admin use only).
+     * Only logged-in editors can fetch data (admin use only).
      */
     public function check_permission() {
         return current_user_can( 'edit_posts' );
     }
 
+    /**
+     * Only site admins can change settings.
+     */
+    public function check_admin_permission() {
+        return current_user_can( 'manage_options' );
+    }
+
     // -------------------------------------------------------------------------
-    // GET /wp-json/ct/v1/modules
+    // GET /wp-json/dt/v1/modules
     // -------------------------------------------------------------------------
 
     public function get_modules() {
         $modules = get_posts( [
-            'post_type'   => 'ct-kb-module',
+            'post_type'   => decision_tree_get_module_post_type(),
             'post_status' => 'publish',
             'numberposts' => -1,
             'orderby'     => 'title',
@@ -118,12 +144,85 @@ class CT_DT_Rest_API {
     }
 
     // -------------------------------------------------------------------------
-    // GET /wp-json/ct/v1/tree/{module_id}
+    // GET /wp-json/dt/v1/field-groups
+    // -------------------------------------------------------------------------
+
+    public function get_field_groups() {
+        if ( ! function_exists( 'acf_get_field_groups' ) ) {
+            return new WP_Error( 'acf_missing', 'ACF Pro is required.', [ 'status' => 500 ] );
+        }
+
+        // Get all field groups (both local and database-stored)
+        $groups = acf_get_field_groups();
+
+        // Filter and format for frontend
+        return array_map( fn( $g ) => [
+            'id'    => $g['key'] ?? '',    // ACF field group key (unique identifier)
+            'title' => $g['title'] ?? '',
+        ], $groups );
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /wp-json/dt/v1/field-group
+    // -------------------------------------------------------------------------
+
+    public function set_field_group( WP_REST_Request $request ) {
+        $field_group_id = $request->get_param( 'id' );
+
+        decision_tree_set_field_group_id( $field_group_id );
+
+        return [
+            'success' => true,
+            'fieldGroupId' => decision_tree_get_field_group_id(),
+        ];
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /wp-json/dt/v1/tree/{module_id}
     // -------------------------------------------------------------------------
 
     public function get_tree( WP_REST_Request $request ) {
         if ( ! function_exists( 'get_field' ) ) {
             return new WP_Error( 'acf_missing', 'ACF Pro is required.', [ 'status' => 500 ] );
+        }
+
+        // Validate that a field group is selected and has required fields
+        $field_group_id = decision_tree_get_field_group_id();
+        if ( empty( $field_group_id ) ) {
+            return [
+                'code'    => 'no_field_group',
+                'message' => 'No ACF field group selected. Please select one in the editor.',
+            ];
+        }
+
+        if ( ! function_exists( 'acf_get_fields' ) ) {
+            return new WP_Error( 'acf_missing', 'ACF Pro is required.', [ 'status' => 500 ] );
+        }
+
+        $fields = acf_get_fields( $field_group_id );
+        if ( ! is_array( $fields ) ) {
+            return [
+                'code'    => 'field_group_invalid',
+                'message' => 'Selected field group could not be found or accessed.',
+            ];
+        }
+
+        $field_names = wp_list_pluck( $fields, 'name' );
+        $required_fields = [
+            'sub_module_parent_module',
+            'question_text',
+            'decisions',
+            'info_callout_text',
+            'relevant_legislation',
+            'display_order',
+        ];
+
+        $missing = array_diff( $required_fields, $field_names );
+        if ( ! empty( $missing ) ) {
+            return [
+                'code'    => 'schema_mismatch',
+                'message' => 'Field group "' . acf_get_field_group( $field_group_id )['title'] . '" does not match the required schema. Missing fields: ' . implode( ', ', $missing ) . '.',
+            ];
         }
 
         $module_id = $request->get_param( 'module_id' );
@@ -132,13 +231,13 @@ class CT_DT_Rest_API {
         // We filter in PHP rather than relying on serialised meta_query patterns,
         // which can be unreliable across ACF versions.
         $all_sub_modules = get_posts( [
-            'post_type'   => 'ct-kb-submodules',
+            'post_type'   => decision_tree_get_submodule_post_type(),
             'post_status' => 'publish',
             'numberposts' => -1,
         ] );
 
         $sub_modules = array_filter( $all_sub_modules, function( $post ) use ( $module_id ) {
-            $parent = get_field( 'sub_module_parent_module', $post->ID );
+            $parent = get_field( decision_tree_get_field_submodule_parent_module(), $post->ID );
             return $this->relationship_contains_id( $parent, $module_id );
         } );
 
@@ -159,7 +258,7 @@ class CT_DT_Rest_API {
 
         foreach ( $sub_modules as $post ) {
             $node_id     = 'sm-' . $post->ID;
-            $decisions   = get_field( 'decisions', $post->ID ) ?: [];
+            $decisions   = get_field( decision_tree_get_field_decisions(), $post->ID ) ?: [];
             // terminal only if explicitly set by user (not auto-detected from empty decisions)
             $meta_terminal = get_post_meta( $post->ID, '_ct_is_terminal', true );
             $is_terminal   = ! empty( $decisions ) ? false : ( $meta_terminal === '1' );
@@ -183,7 +282,7 @@ class CT_DT_Rest_API {
 
             // Build legislation array (embedded in node data — no second fetch needed).
             $legislation = [];
-            foreach ( get_field( 'relevant_legislation', $post->ID ) ?: [] as $leg ) {
+            foreach ( get_field( decision_tree_get_field_legislation(), $post->ID ) ?: [] as $leg ) {
                 $legislation[] = [
                     'act'     => $leg['act']              ?? '',
                     'section' => $leg['section']          ?? '',
@@ -196,11 +295,12 @@ class CT_DT_Rest_API {
                 'data' => [
                     'postId'      => $post->ID,
                     'label'       => $post->post_title,
-                    'question'    => get_field( 'question_text',    $post->ID ) ?: null,
+                    'question'    => get_field( decision_tree_get_field_question_text(),    $post->ID ) ?: null,
                     'content'     => apply_filters( 'the_content', $post->post_content ),
                     'rawContent'  => $post->post_content,
-                    'callout'     => get_field( 'info_callout_text', $post->ID ) ?: null,
+                    'callout'     => get_field( decision_tree_get_field_info_callout(), $post->ID ) ?: null,
                     'legislation' => $legislation,
+                    'adminNotes'  => get_post_meta( $post->ID, '_ct_admin_notes', true ) ?: '',
                     'isTerminal'  => $is_terminal,
                     'linkStatus'  => $link_status,
                 ],
@@ -244,7 +344,7 @@ class CT_DT_Rest_API {
     }
 
     // -------------------------------------------------------------------------
-    // POST /wp-json/ct/v1/module/{module_id}  — update module-level settings
+    // POST /wp-json/dt/v1/module/{module_id}  — update module-level settings
     // -------------------------------------------------------------------------
 
     public function set_module_settings( WP_REST_Request $request ) {
@@ -264,7 +364,7 @@ class CT_DT_Rest_API {
     }
 
     // -------------------------------------------------------------------------
-    // POST /wp-json/ct/v1/node/{post_id}
+    // POST /wp-json/dt/v1/node/{post_id}
     // -------------------------------------------------------------------------
 
     public function update_node( WP_REST_Request $request ) {
@@ -275,7 +375,7 @@ class CT_DT_Rest_API {
         $post_id = $request->get_param( 'post_id' );
         $post    = get_post( $post_id );
 
-        if ( ! $post || $post->post_type !== 'ct-kb-submodules' ) {
+        if ( ! $post || $post->post_type !== decision_tree_get_submodule_post_type() ) {
             return new WP_Error( 'not_found', 'Sub-module not found.', [ 'status' => 404 ] );
         }
 
@@ -297,6 +397,11 @@ class CT_DT_Rest_API {
         // ── Update best practice callout ─────────────────────────────────────
         if ( array_key_exists( 'callout', $body ) ) {
             update_field( 'info_callout_text', sanitize_textarea_field( $body['callout'] ), $post_id );
+        }
+
+        // ── Admin notes (editor-only, never exposed to viewer) ───────────────
+        if ( array_key_exists( 'admin_notes', $body ) ) {
+            update_post_meta( $post_id, '_ct_admin_notes', sanitize_textarea_field( $body['admin_notes'] ) );
         }
 
         // ── Mark as terminal / end node ──────────────────────────────────────
@@ -338,6 +443,20 @@ class CT_DT_Rest_API {
             update_field( 'decisions', $decisions, $post_id );
         }
 
+        // ── Replace the legislation repeater ─────────────────────────────────
+        // Body: { legislation: [{ act, section, url }, ...] }
+        if ( isset( $body['legislation'] ) ) {
+            $rows = [];
+            foreach ( (array) $body['legislation'] as $entry ) {
+                $rows[] = [
+                    'act'              => sanitize_text_field( $entry['act']     ?? '' ),
+                    'section'          => sanitize_text_field( $entry['section'] ?? '' ),
+                    'legislation_link' => esc_url_raw(        $entry['url']     ?? '' ),
+                ];
+            }
+            update_field( 'relevant_legislation', $rows, $post_id );
+        }
+
         // ── Create or update a connection (decision_path) ────────────────────
         // Body: { connect: { answer: "Yes"|"No", target_id: 123 } }
         if ( isset( $body['connect'] ) ) {
@@ -374,7 +493,7 @@ class CT_DT_Rest_API {
     }
 
     // -------------------------------------------------------------------------
-    // POST /wp-json/ct/v1/nodes  — create a new sub-module
+    // POST /wp-json/dt/v1/nodes  — create a new sub-module
     // -------------------------------------------------------------------------
 
     public function create_node( WP_REST_Request $request ) {
@@ -387,7 +506,7 @@ class CT_DT_Rest_API {
         }
 
         $post_id = wp_insert_post( [
-            'post_type'   => 'ct-kb-submodules',
+            'post_type'   => decision_tree_get_submodule_post_type(),
             'post_status' => 'publish',
             'post_title'  => $title,
         ], true );
@@ -397,7 +516,7 @@ class CT_DT_Rest_API {
         }
 
         if ( function_exists( 'update_field' ) ) {
-            update_field( 'sub_module_parent_module', [ $module_id ], $post_id );
+            update_field( decision_tree_get_field_submodule_parent_module(), [ $module_id ], $post_id );
         }
 
         return rest_ensure_response( [
@@ -410,6 +529,7 @@ class CT_DT_Rest_API {
                 'rawContent'  => '',
                 'callout'     => null,
                 'legislation' => [],
+                'adminNotes'  => '',
                 'isTerminal'  => false,
                 'linkStatus'  => 'empty',
             ],
@@ -417,14 +537,14 @@ class CT_DT_Rest_API {
     }
 
     // -------------------------------------------------------------------------
-    // DELETE /wp-json/ct/v1/node/{post_id}
+    // DELETE /wp-json/dt/v1/node/{post_id}
     // -------------------------------------------------------------------------
 
     public function delete_node( WP_REST_Request $request ) {
         $post_id = $request->get_param( 'post_id' );
         $post    = get_post( $post_id );
 
-        if ( ! $post || $post->post_type !== 'ct-kb-submodules' ) {
+        if ( ! $post || $post->post_type !== decision_tree_get_submodule_post_type() ) {
             return new WP_Error( 'not_found', 'Sub-module not found.', [ 'status' => 404 ] );
         }
 

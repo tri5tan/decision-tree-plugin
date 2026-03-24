@@ -1,8 +1,16 @@
 /**
  * Mock data for local dev server.
- * Matches the shape returned by GET /wp-json/ct/v1/tree/{module_id}.
+ * Matches the shape returned by GET /wp-json/dt/v1/tree/{module_id}.
  * Used automatically when window.ctDT.restUrl is null (i.e. running via `npm run dev`).
  */
+
+
+import treeData from './tree.json';
+
+
+export const DEV_TREE = treeData;
+
+
 
 export const DEV_MODULE_ID = 1;
 
@@ -11,7 +19,15 @@ export const DEV_MODULES = [
   { id: 2, title: 'Food Act Compliance' },
 ];
 
-export const DEV_TREE = {
+export const DEV_FIELD_GROUPS = [
+  { id: 'group_kb_submodule_fields', title: 'Knowledge Base Sub Module fields' },
+  { id: 'group_kb_module_fields', title: 'Knowledge Base Module Fields' },
+  { id: 'group_custom_tree', title: 'Custom Tree Schema' },
+];
+
+
+
+export const DEV_TREE_og = {
   nodes: [
     {
       id: 'sm-101',
@@ -103,4 +119,21 @@ export const DEV_TREE = {
     { id: 'e-103-105', source: 'sm-103', target: 'sm-105', label: 'Yes — Issue infringement',           answer: 'Yes' },
     { id: 'e-103-106', source: 'sm-103', target: 'sm-106', label: 'No — Impound dog',                   answer: 'No'  },
   ],
+};
+
+/**
+ * Mock tree data mapped to field groups.
+ * Only 'group_kb_submodule_fields' has valid tree data.
+ * Other groups will return errors to simulate schema mismatch.
+ */
+export const DEV_FIELD_GROUP_TREE_MAP = {
+  'group_kb_submodule_fields': DEV_TREE_og,  // Valid schema
+  'group_kb_module_fields': {  // Error: missing required fields
+    code: 'schema_error',
+    message: 'Field group "Knowledge Base Module Fields" does not match the required schema. Missing fields: question_text, decisions, info_callout_text.',
+  },
+  'group_custom_tree': {  // Error: mismatched schema
+    code: 'schema_error',
+    message: 'Field group "Custom Tree Schema" has incompatible field names. Expected: question_text, decisions, info_callout_text. Found: custom_question, custom_choices.',
+  },
 };

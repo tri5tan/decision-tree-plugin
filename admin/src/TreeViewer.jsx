@@ -11,6 +11,7 @@ import ReactFlow, {
 } from 'reactflow';
 import dagre from 'dagre';
 import ViewerNode, { VIEWER_NODE_W } from './ViewerNode';
+import ViewerSidebar from './ViewerSidebar';
 import { STATUS_COLORS } from './nodeStatus';
 import { DEV_TREE } from './devData';
 
@@ -165,13 +166,14 @@ function computeReachability(nodes, edges, rootNodeId) {
 
 // ─── View-only Tree Component ─────────────────────────────────────────────────
 export default function TreeViewer({ initialModuleId }) {
-  const IS_DEV  = !window.ctDTViewer?.restUrl;  // true when running via `npm run dev`
-  const { restUrl } = window.ctDTViewer || {};
+  const IS_DEV  = !window.dtViewer?.restUrl;  // true when running via `npm run dev`
+  const { restUrl } = window.dtViewer || {};
 
   const [nodes, setNodes] = useNodesState([]);
   const [edges, setEdges] = useEdgesState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
 
   useEffect(() => {
     if (!initialModuleId && !IS_DEV) return;
@@ -203,14 +205,22 @@ export default function TreeViewer({ initialModuleId }) {
       .catch(e => setError(e.message || 'Could not load tree.'))
       .finally(() => setLoading(false));
   }, [initialModuleId, IS_DEV, restUrl]);
+const handleNodeClick = (event, node) => {
+    setSelectedNode(node);
+  };
+
+  const outgoingEdges = selectedNode 
+    ? edges.filter(e => e.source === selectedNode.id)
+    : [];
 
   return (
     <div style={{ 
       width: '100%', 
       height: '100%',
-      minHeight: 400,
+      // minHeight: 400,
       background: '#fafafa',
       fontFamily: 'Roboto, sans-serif',
+      display: 'flex',
     }}>
       {loading && (
         <div style={{
@@ -255,15 +265,17 @@ export default function TreeViewer({ initialModuleId }) {
         fitViewOptions={{ padding: 0.2 }}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable={false}
+        elementsSelectable={true}
+        onNodeClick={handleNodeClick}
         panOnScroll={true}
         zoomOnScroll={true}
         minZoom={0.1}
         maxZoom={2}
         style={{ 
-          width: '100%', 
-          height: '100%',
-          minHeight: 400,
+          // width: '100%', 
+          // height: '100%',
+          // minHeight: 400,
+          flex: 1,
         }}
       >
         <Background color="#ddd" gap={20} />
@@ -273,6 +285,15 @@ export default function TreeViewer({ initialModuleId }) {
           style={{ background: '#fff', border: '1px solid #ddd' }}
         />
       </ReactFlow>
+
+      {/* Sidebar panel */}
+      {selectedNode && (
+        <ViewerSidebar
+          node={selectedNode}
+          outgoingEdges={outgoingEdges}
+          onClose={() => setSelectedNode(null)}
+        />
+      )}
     </div>
   );
 }

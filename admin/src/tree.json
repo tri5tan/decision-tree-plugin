@@ -1,0 +1,306 @@
+{
+  "nodes": [
+    {
+      "id": "alc-101",
+      "data": {
+        "label": "1. Application Received",
+        "question": "Has an application been received for renewal of an existing On-Licence, Off-Licence or Club Licence?",
+        "callout": "Check licence type: On-Licence, Off-Licence, or Club Licence.",
+        "content": "<p><strong>On-Licence:</strong> Authorises sale and supply of alcohol for consumption on premises (taverns, hotels, restaurants, cafés).</p><p><strong>Off-Licence:</strong> Authorises sale and delivery for consumption elsewhere (bottle stores, supermarkets, winery cellar doors).</p><p><strong>Club Licence:</strong> Authorises sale and supply to club members and guests on specified premises.</p><p>File with District Licensing Committee for the district where premises located, unless conveyance application (file where applicant's principal place of business is).</p>",
+        "legislation": [
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 127 - Application for renewal of licence",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          }
+        ],
+        "linkStatus": "complete",
+        "isTerminal": false
+      }
+    },
+    {
+      "id": "alc-102",
+      "data": {
+        "label": "2. Application Timing",
+        "question": "Has the renewal Application been made using the prescribed form and received by the District Licensing Committee at least 20 working days before the expiry of the existing Licence?",
+        "callout": "Applications must be made no later than 20 working days before expiry. Working day excludes weekends, statutory holidays (Waitangi Day, Good Friday, Easter Monday, Anzac Day, Sovereign's Birthday, Matariki, Labour Day), and 20 Dec – 15 Jan period.",
+        "content": "<p>Applications must be in the prescribed form under Section 127(2)(c) of the Sale and Supply of Alcohol Act 2012. The Sale and Supply of Alcohol Regulations 2013 provides the prescribed forms.</p><p>Section 127(2)(b) allows the District Licensing Committee discretion to accept late applications, but no later than the date of expiry of the existing Licence. This discretion must be exercised on a case-by-case basis.</p><p>The required fee must be paid when the Application is lodged.</p><p><strong>Fire Safety Requirement:</strong> Applicants must sign a statement that an approved fire evacuation scheme exists for the premises or that premises are exempt (Fire and Emergency NZ Act 2017, Section 76).</p>",
+        "legislation": [
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 5 - Interpretation",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 127 - Application for renewal of licence",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Regulations 2013",
+            "section": "Schedule - Forms",
+            "url": "https://legislation.govt.nz/regulation/public/2013/0013/latest/whole.html"
+          },
+          {
+            "act": "Fire and Emergency NZ Act 2017",
+            "section": "Section 76 - Owner must provide and maintain evacuation scheme",
+            "url": "https://legislation.govt.nz/act/public/2017/0017/latest/whole.html"
+          }
+        ],
+        "linkStatus": "complete",
+        "isTerminal": false
+      }
+    },
+    {
+      "id": "alc-103",
+      "data": {
+        "label": "3. Application Rejected - Late",
+        "question": null,
+        "callout": "Application cannot be accepted if not received in time.",
+        "content": "<p>If a renewal Application is not made prior to the expiry of the existing Licence, the Licence will expire and a fresh application for a new Licence must be made (with prescribed fee).</p><p>Where any Licence has expired, alcohol cannot be sold, supplied or delivered, and must be removed from the premises. For BYO Licence holders, alcohol can no longer be brought onto the premises.</p>",
+        "legislation": [
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 122 - Expiry or renewal of licences",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 127(2)(b) - Application for renewal of licence",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          }
+        ],
+        "linkStatus": "terminal",
+        "isTerminal": true
+      }
+    },
+    {
+      "id": "alc-104",
+      "data": {
+        "label": "4. Notification Requirements",
+        "question": "Has the Applicant completed the notification requirements set out in section 101 of the Act and the Sale and Supply of Alcohol Regulations 2013?",
+        "callout": "Public notice must be given within 10 working days of filing the Application (not 20 days as for new applications).",
+        "content": "<p>Under Section 127(3), renewal applicants must comply with notification requirements in Section 101. However, public notice must be given within 10 working days (instead of 20 for new applications).</p><p>Except for conveyances, notice must be attached in a conspicuous place adjacent to the premises within 10 working days after filing.</p><p>Regulation 37 sets out notice requirements for very low-risk or low-risk premises. Regulation 38 sets requirements for medium-risk, high-risk, or very high-risk premises.</p><p>Under Section 208, the District Licensing Committee may waive minor omissions if satisfied they were not wilful.</p>",
+        "legislation": [
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 101 - Notification requirements",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 127 - Application for renewal of licence",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 208 - Licensing authority may waive omissions",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Regulations 2013",
+            "section": "Regulation 37 - Public notice for low-risk renewals",
+            "url": "https://legislation.govt.nz/regulation/public/2013/0013/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Regulations 2013",
+            "section": "Regulation 38 - Public notice for medium/high-risk renewals",
+            "url": "https://legislation.govt.nz/regulation/public/2013/0013/latest/whole.html"
+          }
+        ],
+        "linkStatus": "complete",
+        "isTerminal": false
+      }
+    },
+    {
+      "id": "alc-105",
+      "data": {
+        "label": "5. Notification Failure - Cannot Process",
+        "question": null,
+        "callout": "Application cannot proceed if notification is incomplete or absent.",
+        "content": "<p>If the Application has not been correctly notified, or has not been notified at all, then it cannot be processed. The holder of the existing Licence will need to apply for a fresh new Licence.</p>",
+        "legislation": [],
+        "linkStatus": "terminal",
+        "isTerminal": true
+      }
+    },
+    {
+      "id": "alc-106",
+      "data": {
+        "label": "6. Application Forwarding",
+        "question": "Has the Secretary of the District Licensing Committee forwarded the renewal Application to NZ Police, Medical Officer of Health, and Alcohol Licensing Inspector?",
+        "callout": "Section 129 incorporates Section 103 obligations for renewal applications.",
+        "content": "<p>The Secretary forwards the application to:</p><ul><li>NZ Police (constable in charge of nearest police station to premises or Secretary's office for conveyances)</li><li>Medical Officer of Health (in district where premises located or principal business located for conveyances)</li><li>Alcohol Licensing Inspector (employed by council with independent statutory function)</li></ul><p>May also forward to Fire and Emergency NZ and request internal council officer comments (Environmental Health, Environmental Noise).</p><p>Inspectors must inquire into and file reports on every application. Police and Medical Officer must raise objections within 15 working days if they have concerns.</p><p>Section 103(5) requires Secretary to send applicant copies of all agency reports.</p>",
+        "legislation": [
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 103 - Police, Medical Officer of Health, and inspector must inquire into applications",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 129 - Police, Medical Officer of Health, and inspector must inquire into application",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          }
+        ],
+        "linkStatus": "complete",
+        "isTerminal": false
+      }
+    },
+    {
+      "id": "alc-107",
+      "data": {
+        "label": "7. Police/Medical Officer Objection",
+        "question": "Has the District Licensing Committee received a report from either the NZ Police or the Medical Officer of Health raising opposition to the Application?",
+        "callout": "Opposition must be filed within 15 working days of receiving the application copy.",
+        "content": "<p>Upon receipt of a renewal application, NZ Police and Medical Officer of Health must each inquire into the application. If either has matters in opposition, they must file a report with the District Licensing Committee within 15 working days after receiving the copy.</p><p>If no report is received within 15 working days, the Committee may assume no opposition from those agencies.</p>",
+        "legislation": [
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 103 - Police, Medical Officer of Health, and inspector must inquire into applications",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          }
+        ],
+        "linkStatus": "complete",
+        "isTerminal": false
+      }
+    },
+    {
+      "id": "alc-108",
+      "data": {
+        "label": "8. No Police/Medical Objection",
+        "question": null,
+        "callout": "Silence = no objection.",
+        "content": "<p>If no report is received from the Police or Medical Officer of Health within 15 working days after receiving a copy of the Application, the District Licensing Committee may assume those agencies do not oppose the Application.</p>",
+        "legislation": [
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 103(4) - Deemed approval if no response",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          }
+        ],
+        "linkStatus": "complete",
+        "isTerminal": false
+      }
+    },
+    {
+      "id": "alc-109",
+      "data": {
+        "label": "9. Public Objection",
+        "question": "Has any other person (not Medical Officer of Health or NZ Police) made an objection to the renewal Application?",
+        "callout": "Objections must raise valid concerns and be filed within 25 working days of first public notification.",
+        "content": "<p>Any person may object as individual or group representative. Trade competitors restricted: may only object if their trade not directly affected.</p><p>Sale and Supply of Alcohol (Community Participation) Act 2023 enhanced community participation by removing the 1-2 km radius limit and allowing any person to object. It also requires DLC (not ARLA) procedures to avoid unnecessary formality, prohibit cross-examination, and allow tikanga Māori and te reo (enforced 30 May 2024).</p><p>Objections must be in writing, filed within 25 working days of first public notice, and clearly relate to the premises with valid concerns. For renewals, objections limited to matters in Section 131 of the Act.</p><p>Secretary must give applicant a copy of every objection.</p>",
+        "legislation": [
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 128 - Objections to renewal",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 131 - Criteria for renewal",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol Act 2012",
+            "section": "Section 203A - Licensing committees must establish appropriate procedures",
+            "url": "https://legislation.govt.nz/act/public/2012/0060/latest/whole.html"
+          },
+          {
+            "act": "Sale and Supply of Alcohol (Community Participation) Amendment Act 2023",
+            "section": "General provisions on participation enhancement",
+            "url": "https://legislation.govt.nz/act/public/2023/0031/latest/whole.html"
+          }
+        ],
+        "linkStatus": "complete",
+        "isTerminal": false
+      }
+    },
+    {
+      "id": "alc-110",
+      "data": {
+        "label": "10. Proceed to Decision",
+        "question": null,
+        "callout": "Application now proceeds to formal decision stage.",
+        "content": "<p>All procedural checks complete. Application proceeds to Flow Diagram 6 - Decision on Application for Renewal or Variation of Existing Licence.</p><p>The District Licensing Committee will now consider all reports, objections, and apply the renewal criteria to make a final decision on granting or refusing the renewal.</p>",
+        "legislation": [],
+        "linkStatus": "terminal",
+        "isTerminal": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-101-102",
+      "source": "alc-101",
+      "target": "alc-102",
+      "label": "Yes — Application received, check timing",
+      "answer": "Yes"
+    },
+    {
+      "id": "e-102-103",
+      "source": "alc-102",
+      "target": "alc-103",
+      "label": "No — Application not received in time",
+      "answer": "No"
+    },
+    {
+      "id": "e-102-104",
+      "source": "alc-102",
+      "target": "alc-104",
+      "label": "Yes — Proceed to complete notification",
+      "answer": "Yes"
+    },
+    {
+      "id": "e-104-105",
+      "source": "alc-104",
+      "target": "alc-105",
+      "label": "No — Notification incomplete or not done",
+      "answer": "No"
+    },
+    {
+      "id": "e-104-106",
+      "source": "alc-104",
+      "target": "alc-106",
+      "label": "Yes — Notification complete, forward to agencies",
+      "answer": "Yes"
+    },
+    {
+      "id": "e-106-107",
+      "source": "alc-106",
+      "target": "alc-107",
+      "label": "Yes — Check for agency opposition",
+      "answer": "Yes"
+    },
+    {
+      "id": "e-107-109",
+      "source": "alc-107",
+      "target": "alc-109",
+      "label": "No — No opposition from agencies, check public objections",
+      "answer": "No"
+    },
+    {
+      "id": "e-107-110",
+      "source": "alc-107",
+      "target": "alc-110",
+      "label": "Yes — Agencies object, proceed to decision with concerns noted",
+      "answer": "Yes"
+    },
+    {
+      "id": "e-109-110",
+      "source": "alc-109",
+      "target": "alc-110",
+      "label": "Either — Proceed to Decision stage regardless",
+      "answer": "Yes"
+    }
+  ],
+  "metadata": {
+    "module": "alc",
+    "title": "Alcohol Licensing - Application for Renewal",
+    "flowDiagram": "2a - Receipt of Application for Renewal to existing Licence (On/Off/Club)",
+    "lastUpdated": "2026-03-05",
+    "source": "SG Review - Regulation of the SSAA Legal Compliance Module",
+    "nodeCount": 10,
+    "edgeCount": 9
+  }
+}
