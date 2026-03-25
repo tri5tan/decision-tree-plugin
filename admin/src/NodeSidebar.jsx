@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { STATUS_COLORS, STATUS_LABELS, getStatusKey } from './nodeStatus';
+import Quill from 'quill';
+import 'quill/dist/quill.snow.css';
 
 export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPostUrl, onUpdateNode, onUpdateEdge, onDeleteEdge, onDeleteNode, onMarkTerminal, onSetStart, onUnmarkTerminal, onClearStart }) {
   const d         = node.data;
@@ -38,6 +40,13 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft,   setNotesDraft]   = useState(d.adminNotes || '');
   const [savingNotes,  setSavingNotes]  = useState(false);
+
+  useEffect(() => {
+    setQuestionDraft(d.question || '');
+    setCalloutDraft(d.callout || '');
+    setBodyDraft(d.rawContent || d.content || '');
+    setNotesDraft(d.adminNotes || '');
+  }, [d.question, d.callout, d.rawContent, d.content, d.adminNotes]);
 
   const saveQuestion = async () => {
     setSaving(true);
@@ -305,11 +314,9 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
       }>
         {editingQ ? (
           <div>
-            <textarea
+            <RichTextEditor
               value={questionDraft}
-              onChange={e => setQuestionDraft(e.target.value)}
-              rows={4}
-              style={{ width: '100%', fontSize: 12, boxSizing: 'border-box', padding: 6, borderRadius: 3, border: '1px solid #ccc', resize: 'vertical' }}
+              onChange={setQuestionDraft}
             />
             <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
               <button
@@ -329,7 +336,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           </div>
         ) : (
           d.question
-            ? <p style={{ margin: 0, lineHeight: 1.5 }}>{d.question}</p>
+            ? <div style={{ margin: 0, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: d.question }} />
             : <p style={{ margin: 0, color: d.isTerminal ? '#888' : '#c0392b', fontStyle: 'italic' }}>
                 {d.isTerminal ? 'End node — no question' : '⚠ No question_text set'}
               </p>
@@ -381,12 +388,9 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
       }>
         {editingCallout ? (
           <div>
-            <textarea
+            <RichTextEditor
               value={calloutDraft}
-              onChange={e => setCalloutDraft(e.target.value)}
-              rows={3}
-              placeholder="Best practice note…"
-              style={{ width: '100%', fontSize: 12, boxSizing: 'border-box', padding: 6, borderRadius: 3, border: '1px solid #ccc', resize: 'vertical' }}
+              onChange={setCalloutDraft}
             />
             <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
               <button onClick={saveCallout} disabled={savingCallout}
@@ -401,7 +405,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           </div>
         ) : (
           d.callout
-            ? <p style={{ margin: 0, lineHeight: 1.5 }}>{d.callout}</p>
+            ? <div style={{ margin: 0, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: d.callout }} />
             : <p style={{ margin: 0, color: '#aaa', fontStyle: 'italic', fontSize: 12 }}>None set</p>
         )}
       </Section>
@@ -412,25 +416,22 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           Body content
           {!editingBody && (
             <button
-              onClick={() => { setBodyDraft(d.rawContent || ''); setEditingBody(true); }}
+              onClick={() => { setBodyDraft(d.rawContent || d.content || ''); setEditingBody(true); }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: '#2c6e49', fontWeight: 600 }}
             >
-              ✎ {d.rawContent ? 'Edit' : 'Add'}
+              ✎ {(d.rawContent || d.content) ? 'Edit' : 'Add'}
             </button>
           )}
         </span>
       }>
         {editingBody ? (
           <div>
-            <textarea
+            <RichTextEditor
               value={bodyDraft}
-              onChange={e => setBodyDraft(e.target.value)}
-              rows={6}
-              placeholder="Body copy (HTML supported)…"
-              style={{ width: '100%', fontSize: 12, boxSizing: 'border-box', padding: 6, borderRadius: 3, border: '1px solid #ccc', resize: 'vertical', fontFamily: 'monospace' }}
+              onChange={setBodyDraft}
             />
-            <p style={{ margin: '4px 0 5px', fontSize: 10, color: '#aaa' }}>HTML tags are allowed (p, strong, em, ul, li…)</p>
-            <div style={{ display: 'flex', gap: 6 }}>
+            {/* <p style={{ margin: '4px 0 5px', fontSize: 10, color: '#aaa' }}>HTML tags are allowed (p, strong, em, ul, li…)</p> */}
+            <div style={{ display: 'flex', margin: '4px 0 5px', gap: 6 }}>
               <button onClick={saveBody} disabled={savingBody}
                 style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {savingBody ? 'Saving…' : 'Save'}
@@ -601,12 +602,9 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
       }>
         {editingNotes ? (
           <div>
-            <textarea
+            <RichTextEditor
               value={notesDraft}
-              onChange={e => setNotesDraft(e.target.value)}
-              rows={4}
-              placeholder="Internal notes for editors only…"
-              style={{ width: '100%', fontSize: 12, boxSizing: 'border-box', padding: 6, borderRadius: 3, border: '1px solid #ccc', resize: 'vertical' }}
+              onChange={setNotesDraft}
             />
             <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
               <button onClick={saveNotes} disabled={savingNotes}
@@ -621,7 +619,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           </div>
         ) : (
           d.adminNotes
-            ? <p style={{ margin: 0, lineHeight: 1.5, fontSize: 12, color: '#555' }}>{d.adminNotes}</p>
+            ? <div style={{ margin: 0, lineHeight: 1.5, fontSize: 12, color: '#555' }} dangerouslySetInnerHTML={{ __html: d.adminNotes }} />
             : <p style={{ margin: 0, color: '#aaa', fontStyle: 'italic', fontSize: 12 }}>None</p>
         )}
       </Section>
@@ -676,6 +674,42 @@ function Section({ title, children }) {
       {children}
     </div>
   );
+}
+
+function RichTextEditor({ value, onChange }) {
+  const containerRef = useRef(null);
+  const quillRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current || quillRef.current) return;
+
+    quillRef.current = new Quill(containerRef.current, {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ header: [1, 2, 3, false] }],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link', 'blockquote'],
+          ['clean'],
+        ],
+      },
+    });
+
+    quillRef.current.on('text-change', () => {
+      onChange(quillRef.current.root.innerHTML);
+    });
+  }, [onChange]);
+
+  useEffect(() => {
+    if (!quillRef.current) return;
+    const html = value || '';
+    if (quillRef.current.root.innerHTML !== html) {
+      quillRef.current.root.innerHTML = html;
+    }
+  }, [value]);
+
+  return <div ref={containerRef} style={{ minHeight: 120, border: '1px solid #ccc', borderRadius: 4 }} />;
 }
 
 function EditablePathRow({ answer, color, bg, label, warn, edgeId, sourcePostId, onUpdateEdge, onDelete }) {

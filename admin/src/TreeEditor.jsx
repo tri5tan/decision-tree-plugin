@@ -36,6 +36,11 @@ function truncate(str, n) {
   return str && str.length > n ? str.slice(0, n - 1) + "\u2026" : str || "";
 }
 
+
+
+
+
+
 // ─── Status chip (used in sidebar legend only) ───────────────────────────────
 function StatusChip({ status }) {
   const s = STATUS_META[status] || STATUS_META.empty;
@@ -81,6 +86,13 @@ function Badge({ children, color = "#666" }) {
     </span>
   );
 }
+
+
+
+
+
+
+
 
 // ─── Custom node ─────────────────────────────────────────────────────────────
 const KBNode = memo(function KBNode({ id, data, selected }) {
@@ -358,6 +370,9 @@ const KBNode = memo(function KBNode({ id, data, selected }) {
   );
 });
 
+
+
+
 // ─── Custom edge ─────────────────────────────────────────────────────────────
 // Positions label at 75% toward target so Yes/No labels don't overlap at source
 function DecisionEdge({
@@ -459,7 +474,7 @@ function buildFlowEdges(apiEdges) {
 }
 
 // ─── Recompute node status from actual edge data ───────────────────────────
-// Respects explicitly-set isTerminal (from _ct_is_terminal post meta via PHP).
+// Respects explicitly-set isTerminal (from _dt_is_terminal post meta via PHP).
 // Nodes with outgoing edges are never terminal.
 // Also tracks hasIncoming so KBNode can gate "Set as start" appropriately.
 function recomputeNodeStatuses(nodes, edges) {
@@ -515,6 +530,22 @@ function computeReachability(nodes, edges, rootNodeId) {
     },
   }));
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function TreeEditor({ initialModuleId }) {
