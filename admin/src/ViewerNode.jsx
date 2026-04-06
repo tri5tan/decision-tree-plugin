@@ -1,9 +1,7 @@
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { STATUS_COLORS, STATUS_META } from './nodeStatus';
-
-// Wider nodes for expanded content view
-export const VIEWER_NODE_W = 400;
+import { getNodeWidth } from './tree-layout-config';
 
 function truncate(str, n) {
   return str && str.length > n ? str.slice(0, n - 1) + '\u2026' : (str || '');
@@ -41,7 +39,7 @@ const ViewerNode = memo(function ViewerNode({ data, selected }) {
         color:        '#1a1a1a',
         borderRadius: 6,
         padding:      '12px 14px',
-        width:        VIEWER_NODE_W,
+        width:        getNodeWidth(),
         boxSizing:    'border-box',
         borderTop:    statusKey === 'orphan' ? '2px dashed #c0392b' : `2px solid ${selected ? accentColor : '#e5e7eb'}`,
         borderRight:  statusKey === 'orphan' ? '2px dashed #c0392b' : `2px solid ${selected ? accentColor : '#e5e7eb'}`,

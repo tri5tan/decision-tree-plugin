@@ -3,14 +3,14 @@
  * Plugin Name: Decision Tree
  * Description: Decision tree admin editor (React Flow) and front-end step-by-step wizard
  *              for WordPress. Reads ACF Pro fields on by submodule posts and exposes them via a REST endpoint consumed by both UIs.
- * Version:     1.0.0
+ * Version:     1.0.4
  * Author:      Tristan
  * Text Domain: decision-tree
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'DT_VERSION', '1.0.0' );
+define( 'DT_VERSION', '1.0.4' );
 define( 'DT_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DT_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -50,6 +50,14 @@ function decision_tree_get_field_order() {
     return apply_filters( 'decision_tree_field_order', 'display_order' );
 }
 
+function decision_tree_get_field_resource_decision_tree() {
+    return apply_filters( 'decision_tree_field_resource_decision_tree', 'module_decision_tree' );
+}
+
+function decision_tree_get_field_resource_linked_submodules() {
+    return apply_filters( 'decision_tree_field_resource_linked_submodules', 'module_linked_sub_modules' );
+}
+
 function decision_tree_get_field_group_id() {
     $id = get_option( 'decision_tree_field_group_id', '' );
     return is_string( $id ) ? sanitize_text_field( $id ) : '';
@@ -57,6 +65,54 @@ function decision_tree_get_field_group_id() {
 
 function decision_tree_set_field_group_id( $field_group_id ) {
     return update_option( 'decision_tree_field_group_id', sanitize_text_field( $field_group_id ) );
+}
+
+/**
+ * Detect field group role by schema inspection.
+ * 
+ * Not based on post type name or field group title — only the required field names.
+ * See SCHEMA.md for canonical field definitions.
+ * 
+ * @param string $field_group_id ACF field group key
+ * @return string 'resource', 'submodule', or 'unknown'
+ */
+function decision_tree_get_field_group_mode( $field_group_id ) {
+    if ( ! function_exists( 'acf_get_fields' ) ) {
+        return 'unknown';
+    }
+
+    $fields = acf_get_fields( $field_group_id );
+    if ( ! is_array( $fields ) || empty( $fields ) ) {
+        return 'unknown';
+    }
+
+    $field_names = wp_list_pluck( $fields, 'name' );
+
+    // Resource schema: must have module_decision_tree + module_linked_sub_modules
+    $resource_required = [
+        decision_tree_get_field_resource_decision_tree(),
+        decision_tree_get_field_resource_linked_submodules(),
+    ];
+    $resource_missing = array_diff( $resource_required, $field_names );
+    if ( empty( $resource_missing ) ) {
+        return 'resource';
+    }
+
+    // Submodule schema: must have all step fields
+    $submodule_required = [
+        decision_tree_get_field_submodule_parent_module(),
+        decision_tree_get_field_question_text(),
+        decision_tree_get_field_decisions(),
+        decision_tree_get_field_info_callout(),
+        decision_tree_get_field_legislation(),
+        decision_tree_get_field_order(),
+    ];
+    $submodule_missing = array_diff( $submodule_required, $field_names );
+    if ( empty( $submodule_missing ) ) {
+        return 'submodule';
+    }
+
+    return 'unknown';
 }
 
 function decision_tree_get_admin_menu_parent() {

@@ -26,11 +26,11 @@ import ReactFlow, {
 import dagre from "dagre";
 import NodeSidebar from "./NodeSidebar";
 import { STATUS_COLORS, STATUS_META } from "./nodeStatus";
-import { DEV_MODULES, DEV_TREE, DEV_MODULE_ID, DEV_FIELD_GROUPS, DEV_FIELD_GROUP_TREE_MAP } from "./devData";
+import { DEV_MODULES, DEV_TREE, DEV_MODULE_ID, DEV_FIELD_GROUPS, DEV_FIELD_GROUP_TREE_MAP, DEV_RESOURCES, DEV_FIELD_TREE_MAP_BY_RESOURCE, mockGetResourcesResponse } from "./devData";
+import { getNodeWidth, getNodeHeight, getRankSep, getNodeSep, getZoomBounds, getRootOffsets } from "./tree-layout-config";
 
 // ─── Layout constants ────────────────────────────────────────────────────────
-const NODE_W = 260;
-const NODE_H = 200; // dagre spacing estimate — nodes themselves expand freely to fit content
+// min/max driven by shared config and viewport-based clamp (phase 1)
 
 function truncate(str, n) {
   return str && str.length > n ? str.slice(0, n - 1) + "\u2026" : str || "";
@@ -125,7 +125,7 @@ const KBNode = memo(function KBNode({ id, data, selected }) {
         color: "#1a1a1a",
         borderRadius: 6,
         padding: "10px 12px",
-        width: NODE_W,
+        width: getNodeWidth(),
         boxSizing: "border-box",
         // Avoid border shorthand — it clobbers borderLeft when React Flow
         // toggles the selected state. Set each side individually instead.
@@ -437,17 +437,25 @@ const edgeTypes = { "decision-edge": DecisionEdge };
 
 // ─── Auto-layout via dagre ────────────────────────────────────────────────────
 function applyDagreLayout(nodes, edges) {
+  const graphNodeWidth = getNodeWidth();
+  const graphNodeHeight = getNodeHeight();
+  const graphRankSep = getRankSep();
+  const graphNodeSep = getNodeSep();
+
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB", ranksep: 80, nodesep: 40 });
+  g.setGraph({ rankdir: "TB", ranksep: graphRankSep, nodesep: graphNodeSep });
 
-  nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+  nodes.forEach((n) => g.setNode(n.id, { width: graphNodeWidth, height: graphNodeHeight }));
   edges.forEach((e) => g.setEdge(e.source, e.target));
   dagre.layout(g);
 
   return nodes.map((n) => {
     const pos = g.node(n.id);
-    return { ...n, position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 } };
+    return {
+      ...n,
+      position: { x: pos.x - graphNodeWidth / 2, y: pos.y - graphNodeHeight / 2 },
+    };
   });
 }
 
@@ -553,11 +561,14 @@ export default function TreeEditor({ initialModuleId }) {
   const { restUrl, editPostUrl, subModulesUrl, fieldGroupId: initialFieldGroupId } = window.dt || {};
 
   const [modules, setModules] = useState([]);
+  const [resources, setResources] = useState([]);
+  const [resourceId, setResourceId] = useState(0);
   const [fieldGroups, setFieldGroups] = useState([]);
   const [fieldGroupId, setFieldGroupId] = useState(() => {
     if (IS_DEV) return "";
     return initialFieldGroupId || "";
   });
+  const [fieldGroupMode, setFieldGroupMode] = useState("resource"); // 'resource' or 'submodule'
   const [loadingFieldGroups, setLoadingFieldGroups] = useState(false);
   const [moduleId, setModuleId] = useState(() => {
     if (IS_DEV) return DEV_MODULE_ID;
@@ -590,6 +601,25 @@ export default function TreeEditor({ initialModuleId }) {
   const [dragNewTitle, setDragNewTitle] = useState("");
   const [dragNewSaving, setDragNewSaving] = useState(false);
   const [rootNodeId, setRootNodeId] = useState(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
+
+  // Reposition start node at top after layout
+  useEffect(() => {
+    if (!reactFlowInstance || nodes.length === 0 || !rootNodeId) return;
+    const rootNode = nodes.find((n) => n.data?.isRoot);
+    if (!rootNode) return;
+    const { x, y } = rootNode.position;
+    const { minZoom, maxZoom } = getZoomBounds();
+
+    const currentZoom = reactFlowInstance.getZoom();
+    const clampedZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom));
+
+    reactFlowInstance.setViewport({
+      x: -x + 160,
+      y: -y + getRootOffsets().y,
+      zoom: clampedZoom,
+    });
+  }, [reactFlowInstance, nodes, rootNodeId]);
 
   // Fetch module list for the dropdown (requires editor login).
   useEffect(() => {
@@ -630,10 +660,79 @@ export default function TreeEditor({ initialModuleId }) {
     }
   }, [modules, moduleId, fieldGroupId]);
 
+  // Fetch resource list for the selected module
+  useEffect(() => {
+    if (!moduleId || !fieldGroupId) {
+      setResources([]);
+      setResourceId(0);
+      return;
+    }
+
+    if (IS_DEV) {
+      const mockResponse = mockGetResourcesResponse(moduleId, fieldGroupId);
+      setFieldGroupMode(mockResponse.fieldGroupMode);
+      setResources(mockResponse.resources);
+      setResourceId(mockResponse.resources[0]?.id || 0);
+
+      if (mockResponse.message) {
+        setError(mockResponse.message);
+      }
+      return;
+    }
+
+    const gp = encodeURIComponent(fieldGroupId || '');
+    fetch(`${restUrl}resources?module_id=${moduleId}&field_group_id=${gp}`, {
+      headers: { "X-WP-Nonce": window.dt?.nonce || "" },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        // Handle error response
+        if (data?.code) {
+          throw new Error(data.message || 'Could not fetch resource list.');
+        }
+
+        // Extract fieldGroupMode and resources from new response format
+        const mode = data?.fieldGroupMode || 'unknown';
+        const resList = data?.resources || [];
+
+        setFieldGroupMode(mode);
+
+        if (mode === 'submodule') {
+          setResources([]);
+          setResourceId(0);
+          return;
+        }
+
+        if (mode === 'resource') {
+          setResources(resList);
+          setResourceId(resList[0]?.id || 0);
+          return;
+        }
+
+        // Unknown mode
+        setResources([]);
+        setResourceId(0);
+        if (data?.message) {
+          setError(data.message);
+        }
+      })
+      .catch((err) => {
+        setError(err.message || 'Could not fetch resource list.');
+        setResources([]);
+        setResourceId(0);
+      });
+  }, [moduleId, fieldGroupId, IS_DEV, restUrl]);
+
   // Handle field group change
   const handleFieldGroupChange = useCallback((selectedId) => {
     setFieldGroupId(selectedId);
+    setFieldGroupMode("resource");
+    setModuleId(0);
+    setResources([]);
+    setResourceId(0);
+
     if (IS_DEV) return; // Skip POST in dev mode
+
     fetch(restUrl + "field-group", {
       method: "POST",
       headers: {
@@ -642,20 +741,51 @@ export default function TreeEditor({ initialModuleId }) {
       },
       body: JSON.stringify({ id: selectedId }),
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) {
+          return r.json().then((err) => {
+            throw new Error(err?.message || "Could not save field group selection.");
+          });
+        }
+        return r.json();
+      })
       .catch(() => setError("Could not save field group selection."));
   }, [IS_DEV, restUrl]);
 
-  // Fetch + layout tree whenever moduleId or fieldGroupId changes.
+  // Fetch + layout tree whenever resourceId, moduleId, or fieldGroupId changes.
   useEffect(() => {
-    if (!moduleId || fieldGroupId === "") return;
+    if (!moduleId || fieldGroupId === "") {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
+
+    if (fieldGroupMode === 'resource' && !resourceId) {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSelectedNode(null);
 
-    const loadData = IS_DEV
-      ? Promise.resolve(DEV_FIELD_GROUP_TREE_MAP[fieldGroupId] || { code: "field_group_not_found", message: "Field group not configured for this module tree." })
-      : fetch(restUrl + "tree/" + moduleId).then((r) => r.json());
+    let loadData;
+    if (IS_DEV) {
+      if (fieldGroupMode === 'submodule') {
+        loadData = Promise.resolve(DEV_TREE);
+      } else {
+        loadData = Promise.resolve(
+          DEV_FIELD_TREE_MAP_BY_RESOURCE[resourceId] || { code: 'resource_not_found', message: 'Resource not configured for this module tree.' },
+        );
+      }
+    } else {
+      if (fieldGroupMode === 'submodule') {
+        loadData = fetch(`${restUrl}tree/${moduleId}`).then((r) => r.json());
+      } else {
+        loadData = fetch(`${restUrl}tree-resource/${resourceId}`).then((r) => r.json());
+      }
+    }
 
     loadData
       .then((data) => {
@@ -683,10 +813,9 @@ export default function TreeEditor({ initialModuleId }) {
         setError(e.message || "Could not load tree.");
         setNodes([]);
         setEdges([]);
-        setFieldGroupId("");
       })
       .finally(() => setLoading(false));
-  }, [moduleId, fieldGroupId, IS_DEV]);
+  }, [moduleId, fieldGroupId, resourceId, fieldGroupMode, IS_DEV]);
 
   // Recompute orphan / isRoot + hasIncoming whenever edges or root changes
   useEffect(() => {
@@ -1187,16 +1316,21 @@ export default function TreeEditor({ initialModuleId }) {
           },
         };
       } else {
+        const reqBody = {
+          title: newNodeTitle.trim(),
+          module_id: moduleId,
+        };
+        if (resourceId) {
+          reqBody.resource_id = resourceId;
+        }
+
         const res = await fetch(`${restUrl}nodes`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-WP-Nonce": window.dt?.nonce || "",
           },
-          body: JSON.stringify({
-            title: newNodeTitle.trim(),
-            module_id: moduleId,
-          }),
+          body: JSON.stringify(reqBody),
         });
         nodeData = await res.json();
       }
@@ -1372,6 +1506,7 @@ export default function TreeEditor({ initialModuleId }) {
                 onChange={(e) => {
                   const selectedId = Number(e.target.value);
                   setModuleId(selectedId);
+                  setResourceId(0);
                   if (!IS_DEV) {
                     localStorage.setItem(
                       "decision_tree_default_module_id",
@@ -1393,6 +1528,52 @@ export default function TreeEditor({ initialModuleId }) {
                   </option>
                 ))}
               </select>
+
+              {fieldGroupMode === 'resource' ? (
+                <>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: 5,
+                      fontWeight: 600,
+                      fontSize: 12,
+                    }}
+                  >
+                    Resource
+                  </label>
+                  <select
+                    value={resourceId}
+                    onChange={(e) => setResourceId(Number(e.target.value))}
+                    style={{
+                      width: "100%",
+                      padding: "5px 6px",
+                      fontSize: 12,
+                      marginBottom: 20,
+                    }}
+                    disabled={resources.length === 0}
+                  >
+                    <option value={0}>— Select a resource —</option>
+                    {resources.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.title}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <div
+                  style={{
+                    marginBottom: 20,
+                    fontSize: 11,
+                    color: "#333",
+                    background: "#f2f8ff",
+                    padding: 8,
+                    borderRadius: 4,
+                  }}
+                >
+                  Sub-module field group selected: tree is loaded directly from the module path.
+                </div>
+              )}
             </>
           )}
 
@@ -1595,9 +1776,12 @@ export default function TreeEditor({ initialModuleId }) {
             edgeTypes={edgeTypes}
             fitView
             fitViewOptions={{ padding: 0.3 }}
+            minZoom={getZoomBounds().minZoom}
+            maxZoom={getZoomBounds().maxZoom}
             nodesDraggable={true}
             nodesConnectable={true}
             deleteKeyCode={null}
+            onInit={(instance) => setReactFlowInstance(instance)}
             onPaneClick={() => setSelectedNode(null)}
             onConnect={onConnect}
             onConnectStart={onConnectStart}

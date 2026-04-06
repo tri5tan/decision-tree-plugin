@@ -20,7 +20,8 @@ It focuses on:
 ### 0.1 What this doc covers
 - No-build updates (wizard text/CSS, shortcode wrappers, ACF content)
 - Build-required updates (React/React Flow UI behavior and rendering)
-- Risk hierarchy and mitigation (WP > ACF > React Flow)
+- Risk hierarchy and mitigation (ACF schema drift most likely; WP core changes unlikely)
+- What's already mitigated vs. what still needs attention
 - Security checks (capability checks, sanitisation, role safety)
 
 ### 0.2 At-a-glance impact table
@@ -115,69 +116,125 @@ npm run build
 
 ---
 
-## 3) Risk hierarchy and long-term maintenance pain points
+## 3) Risks: likelihood, severity, and effort to fix
 
-This section explains risk ranking, why each risk matters, and quick actions for technical and non-technical users.
+This section lists everything that can break, ordered by how likely it is to happen, with honest assessment of how hard it is to fix.
 
-### 3.1 ⚠️ WordPress core / REST changes (top priority)
-- Why: Core WP API and auth changes can break tree endpoint behavior.
-- Non-tech action: ask the developer to run test tree renders after WP major upgrades.
-- Dev action: enable `WP_DEBUG`, run integration test and inspect REST output.
+**Key principle:** Many things *can* break, but most are straightforward to fix. The real risk is uptime during dev phase while the ACF schema is unstable.
 
-### 3.2 ⚠️ ACF field names / structure are contract-bound (low)
-The plugin defaults to these field slugs:
-- Post types: `ct-kb-module`, `submodules` (overrideable via filters)
-- Required fields: `sub_module_parent_module`, `question_text`, `decisions`, `info_callout_text`, `relevant_legislation`, `display_order`, etc.
+### 3.1 ACF field slug changes / schema drift (most likely)
+**During active dev:** very high likelihood | **After locked schema:** low
 
-If any of these are renamed, removed, or changed in ACF, the tree may show as empty or missing nodes until a valid field group/module is selected in the editor, or site-specific overrides are applied.
+The plugin expects specific field slugs: `question_text`, `decisions`, `decision_path`, `info_callout_text`, `relevant_legislation`, `display_order`, `sub_module_parent_module`.
 
-**Migration note:**
-- Old field groups can be re-targeted using the Tree Editor ACF field group selector; no rebuild is required for layout keys or module selection.
-- Schema changes are handled via filters (fallbacks are safe, empty state is the user-facing result).
-- The plugin now shows an admin notice when required ACF fields are missing, so misconfiguration is caught early
+If any are renamed, merged, or removed in ACF, the tree shows empty nodes or missing data.
 
-**Implementation detail:**
-- `/wp-json/dt/v1/field-groups` returns all ACF field groups (via the ACF API function `acf_get_field_groups`, not core WP), then Tree Editor's select uses those IDs.
-- `/wp-json/dt/v1/field-group` stores the selected group in option `decision_tree_field_group_id` through `decision_tree_set_field_group_id`.
-- `/wp-json/dt/v1/tree/{module_id}` reads the selected group, validates required field names with `acf_get_fields` and an explicit required field list (`sub_module_parent_module`, `question_text`, `decisions`, `info_callout_text`, `relevant_legislation`, `display_order`), and then builds nodes/edges from the chosen submodule content.
+**Symptom:** Red nodes in Tree Editor; missing text in wizard/viewer.
 
-> See `plugin/decision-tree/includes/class-rest-api.php`
+**Effort to fix:** 🟢 **Straightforward** (15–30 minutes)
+- Identify which field changed (check WP admin ACF field group)
+- Update field slug in `class-rest-api.php` or create a filter override
+- Test tree render
+- If using filter approach (recommended): add `apply_filters( 'decision_tree_field_question_text', 'question_text' )` etc.
 
-**Robustness:**
-- The plugin supports overrides via filter hooks:
-  - `decision_tree_module_post_type`
-  - `decision_tree_submodule_post_type`
-  - `decision_tree_field_submodule_parent_module`
-  - `decision_tree_field_question_text`
-  - `decision_tree_field_decisions`
-  - `decision_tree_field_info_callout`
-  - `decision_tree_field_legislation`
-  - `decision_tree_field_order`
+**Prevention:**
+- Document the "locked" schema once agreed (freeze ACF field slugs)
+- Use the Tree Editor field-group selector to switch safely between experimental and locked groups
+- Field group ID is already stored as a WP option (`decision_tree_field_group_id`) — not hardcoded
+- All field slugs are already abstracted behind filterable functions in `decision-tree.php` (e.g. `decision_tree_get_field_question_text()`) — override via `add_filter()` in your theme if slugs ever change without touching plugin code
 
+---
 
+### 3.2 ACF return format mismatch (high likelihood during dev)
+**During active dev:** high | **After schema is locked:** low
 
-### 3.3 ⚠️ ACF return formats can change (medium)
-`decision_path` is expected to return an array of post IDs (e.g. `[123]`). If ACF is changed to return an object or a single scalar, the link-building logic can break.
+**The issue:** `decision_path` is a Relationship field in ACF. If the return format is set to **`ID`**, ACF returns post IDs (e.g., `[123]`). If changed to **`Post Object`**, ACF returns objects (e.g., `[{ ID: 123, post_title: "...", ... }]`).
 
-**Mitigation:**
-- Ensure `decision_path` return format is set to **ID** (recommended). If you must change it, update the REST endpoint logic with robust handling.
+The plugin expects IDs and will break if it gets objects — because the link-building code accesses `decision_path[0]` expecting a number, not an object.
 
-### 3.4 ⚠️ Data model hazards (missing/removed posts)
-- If a sub-module post is deleted, any decisions linking to it become broken.
-- If the “start node” post meta (`_dt_start_node`) is deleted or stale, root node detection can shift unexpectedly.
+**Symptom:** Decision buttons don't link to target nodes; "page not found" errors; or trees appear completely broken during navigation.
 
-**Mitigation:**
-- Continue using the two-pass workflow (create all nodes first, then connect them).
-- If a node is deleted, use the tree editor to rewire or set a new start node.
+**Effort to fix:** 🟡 **Moderate** (30–60 minutes)
+- Check `decision_path` return format in WP Admin → ACF → field group → Decisions repeater → Decision Path field
+- Ensure return format is set to **`ID`** (not "Post Object")
+- If it's definitely set to Post Object and must stay that way, edit `class-rest-api.php` to extract IDs: `const targetId = typeof path === 'object' ? path.ID : path`
+- Test with a sample tree
 
-### 3.5 ⚠️ Dependency risk hierarchy (priority order)
-1. **WordPress (highest priority):** major core plugin upgrades can break REST endpoints, capabilities, hook behavior, URL rewriting, and auth. Always test with `WP_DEBUG` enabled and run a full tree render after upgrades.
-2. **ACF (medium-high):** field schema and return formats are part of the contract (`decision_path`, `question_text`, etc.). ACF return format change (IDs → objects) is an immediate functional break for tree resolution.
-3. **React Flow (lower severity for small updates):** the JS bundles in admin/viewer use React Flow. Patch versions are stable but major library upgrades may require component/API updates. If the version pinned in `package.json` (and not auto-upgraded to “latest major”), this is low.
+**Prevention:**
+- Document that `decision_path` return format must be **`ID`** (noted in SCHEMA.md § "ACF Field Return Format")
+- Pin this in the ACF field group and avoid changes
+- The plugin already detects field group role by schema inspection (`decision_tree_get_field_group_mode()`) and validates required fields at tree-load time — it will surface a `schema_mismatch` error before silently breaking
+- See [SCHEMA.md ACF Field Return Format section](../SCHEMA.md#acf-field-return-format--plugin-consumption) for details
+---
 
-**Mitigation:**
-- When updating dependencies, run full tree render and wizard tests.
-- Keep built JS as a versioned snapshot; it only changes on explicit rebuild.
+### 3.3 Data model inconsistency / orphaned posts (moderate likelihood)
+Sub-module posts deleted, moved, or unpublished; broken `decision_path` relationships; start-node metadata stale.
+
+**Symptom:** Orphan nodes (red, striped); missing branches; error nodes.
+
+**Effort to fix:** 🟢 **Straightforward** (10–20 minutes)
+- Use Tree Editor to visually identify red/orphan nodes
+- Rewire decisions to valid target posts in the ACF Decisions repeater
+- Or restore deleted posts from WP trash
+- Use WP admin bulk actions to republish if needed
+
+**Prevention:**
+- Continue using the two-pass workflow (create all nodes first, then connect them)
+- Avoid deleting posts during active tree building
+
+---
+
+### 3.4 WordPress core / REST API changes (low likelihood)
+**Likelihood:** Very low for minor/patch; low for major. WordPress has strong backwards-compatibility guarantees.
+
+The plugin uses standard WP REST (`register_rest_route`, `current_user_can`, `WP_Query`) with no private APIs.
+
+**What could break:** A major WP version could deprecate a capability check pattern or change `WP_Query` behaviour for custom post types. Extremely rare in practice.
+
+**Symptom:** 403 errors on REST routes; empty tree data; admin page fails to load.
+
+**Effort to fix:** Moderate (1-3 hours depending on what changed)
+- Enable `WP_DEBUG` and check PHP error log
+- Test all REST endpoints: `/wp-json/dt/v1/modules`, `/wp-json/dt/v1/tree/{id}`
+- Update capability checks or query args to match new WP conventions
+
+**Prevention:**
+- Review WP release notes before upgrading (focus on REST API and capability changes)
+- Test on a staging environment before upgrading production
+
+---
+
+### 3.5 React Flow major version bump (low likelihood)
+**Likelihood:** Low — only triggers if someone runs `npm update` and a major version lands.
+
+React Flow has a history of breaking API changes between major versions (v10 to v11 had significant node/edge API changes).
+
+**What could break:** Node/edge props, custom node component signatures, layout utilities, handle positioning.
+
+**Symptom:** Build errors after `npm install`; blank graph; layout broken; custom nodes not rendering.
+
+**Effort to fix:** Medium-high (2-6 hours for a major version)
+- Check React Flow migration guide for the specific version jump
+- Update `TreeEditor.jsx`, `ViewerNode.jsx`, `NodeSidebar.jsx` to new API
+- Rebuild and test full tree render
+
+**Prevention:**
+- Pin React Flow in `package.json` with an exact version (no `^`) — already done
+- Only upgrade React Flow deliberately, not as part of a bulk `npm update`
+- Keep built JS committed — it only changes on explicit rebuild, so the app works even if deps drift
+
+---
+
+### 3.6 Wizard JS browser compatibility (very low likelihood)
+**Likelihood:** Very low — vanilla JS IIFE, no build, no transpilation.
+
+`wizard.js` uses modern JS (arrow functions, template literals, `fetch`, `Array.from`). All are baseline supported in any browser released after 2017.
+
+**What could break:** Nothing realistically. Only a risk if the site needs to support IE11 or similar.
+
+**Symptom:** Wizard doesn't render or throws JS errors in the browser console.
+
+**Effort to fix:** Low (1-2 hours to add a polyfill or transpile via Babel if ever needed)
 
 ---
 
@@ -222,13 +279,34 @@ When handing over, ensure the following is communicated:
 
 ---
 
-## 6) Suggested “low-effort stability improvement” (optional)
-If you want to reduce the “ACF field slugs are hard-coded” risk without a full rewrite, consider adding filters for the key slugs in `class-rest-api.php`:
-- `apply_filters( 'dt_field_sub_module_parent_module', 'sub_module_parent_module' )`
-- `apply_filters( 'dt_field_decisions', 'decisions' )`
-- etc.
+## 6) Integration robustness — what's already in place
 
-This gives future maintainers a simple hook to retarget the plugin to a different ACF schema.
+The following are already implemented. This section exists so future maintainers don't re-solve solved problems.
+
+**Field slugs are not hardcoded.**
+All ACF field slug references go through filterable helper functions in `decision-tree.php`:
+```php
+decision_tree_get_field_question_text()       // default: 'question_text'
+decision_tree_get_field_decisions()           // default: 'decisions'
+decision_tree_get_field_submodule_parent_module() // default: 'sub_module_parent_module'
+// ...etc
+```
+If a slug ever changes, add a `add_filter()` in your theme — no plugin edits required.
+
+**Field group ID is not hardcoded.**
+The selected ACF field group is stored as a WP option (`decision_tree_field_group_id`), set through the editor dropdown. It survives plugin updates.
+
+**Schema detection is automatic.**
+`decision_tree_get_field_group_mode( $id )` inspects any ACF field group by its field names and returns `'resource'`, `'submodule'`, or `'unknown'`. The plugin uses this to validate groups at load time and reject mismatches with a clear error — no silent failures.
+
+**`module_decision_tree == false` resources are filtered.**
+The `/wp-json/dt/v1/resources` endpoint already excludes resources where the `module_decision_tree` toggle is off.
+
+**Mixed relationship return formats are handled.**
+`module_linked_sub_modules` may return WP_Post objects or IDs depending on ACF config. The `build_tree_response` method already normalises both to IDs.
+
+**What's not yet done (see TODO.md):**
+- Field group dropdown in the editor still shows all ACF groups unfiltered — auto-filtering to schema-matched groups only is planned
 
 ---
 
@@ -252,4 +330,4 @@ This gives future maintainers a simple hook to retarget the plugin to a differen
 **Notes:**
 - This file is intended to be a stable reference for maintainers. It should be updated whenever field slugs change, REST routes are modified, or new “no-build” surfaces are added.
 
-> Last updated: 2026-03-25 (optional, keep in sync with commits).
+> Last updated: 2026-04-02

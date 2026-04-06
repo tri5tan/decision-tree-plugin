@@ -1,9 +1,11 @@
 # Node modules
 admin/node_modules/
 
-# Build outputs (keep dist/ committed for easy WordPress deployment)
-# Uncomment if you prefer to build fresh each time:
-# admin/dist/
+# Build outputs
+admin/dist/
+
+# Data
+data/
 
 # Plugin zip archives (generated, not committed)
 *.zip

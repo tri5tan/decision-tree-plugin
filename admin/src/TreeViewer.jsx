@@ -10,10 +10,11 @@ import ReactFlow, {
   EdgeLabelRenderer,
 } from 'reactflow';
 import dagre from 'dagre';
-import ViewerNode, { VIEWER_NODE_W } from './ViewerNode';
+import ViewerNode from './ViewerNode';
 import ViewerSidebar from './ViewerSidebar';
 import { STATUS_COLORS } from './nodeStatus';
 import { DEV_TREE } from './devData';
+import { getNodeWidth, getNodeHeight, getRankSep, getNodeSep, getZoomBounds, getRootOffsets } from './tree-layout-config';
 
 // ─── Dynamic height calculation ──────────────────────────────────────────────
 function calculateNodeHeight(nodeData) {
@@ -42,6 +43,10 @@ function calculateNodeHeight(nodeData) {
   }
 
   return height + 20; // Add 20px buffer
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 // ─── Custom edge (same as admin) ─────────────────────────────────────────────
@@ -88,15 +93,19 @@ const edgeTypes = { 'decision-edge': DecisionEdge };
 
 // ─── Auto-layout via dagre ────────────────────────────────────────────────────
 function applyDagreLayout(nodes, edges) {
+  const graphNodeWidth = getNodeWidth();
+  const graphRankSep = getRankSep();
+  const graphNodeSep = getNodeSep();
+
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   // Balanced spacing for variable-height nodes
-  g.setGraph({ rankdir: 'TB', ranksep: 100, nodesep: 60 });
+  g.setGraph({ rankdir: 'TB', ranksep: graphRankSep, nodesep: graphNodeSep });
 
   // Calculate dynamic height for each node
   nodes.forEach(n => {
-    const height = calculateNodeHeight(n.data);
-    g.setNode(n.id, { width: VIEWER_NODE_W, height });
+    const height = clamp(calculateNodeHeight(n.data), getNodeHeight(), getNodeHeight() * 2);
+    g.setNode(n.id, { width: graphNodeWidth, height });
   });
   
   edges.forEach(e => g.setEdge(e.source, e.target));
@@ -104,8 +113,8 @@ function applyDagreLayout(nodes, edges) {
 
   return nodes.map(n => {
     const pos = g.node(n.id);
-    const height = calculateNodeHeight(n.data);
-    return { ...n, position: { x: pos.x - VIEWER_NODE_W / 2, y: pos.y - height / 2 } };
+    const height = clamp(calculateNodeHeight(n.data), getNodeHeight(), getNodeHeight() * 2);
+    return { ...n, position: { x: pos.x - graphNodeWidth / 2, y: pos.y - height / 2 } };
   });
 }
 
@@ -174,6 +183,7 @@ export default function TreeViewer({ initialModuleId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
   useEffect(() => {
     if (!initialModuleId && !IS_DEV) return;
@@ -205,7 +215,26 @@ export default function TreeViewer({ initialModuleId }) {
       .catch(e => setError(e.message || 'Could not load tree.'))
       .finally(() => setLoading(false));
   }, [initialModuleId, IS_DEV, restUrl]);
-const handleNodeClick = (event, node) => {
+
+  useEffect(() => {
+    if (!reactFlowInstance || nodes.length === 0) return;
+
+    const rootNode = nodes.find((n) => n.data?.isRoot);
+    if (!rootNode) return;
+
+    const { x, y } = rootNode.position;
+    const { minZoom, maxZoom } = getZoomBounds();
+    const currentZoom = reactFlowInstance.getZoom();
+    const clampedZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom));
+
+    reactFlowInstance.setViewport({
+      x: -x + 160,
+      y: -y + getRootOffsets().y,
+      zoom: clampedZoom,
+    });
+  }, [reactFlowInstance, nodes]);
+
+  const handleNodeClick = (event, node) => {
     setSelectedNode(node);
   };
 
@@ -263,18 +292,16 @@ const handleNodeClick = (event, node) => {
         edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
+        minZoom={getZoomBounds().minZoom}
+        maxZoom={getZoomBounds().maxZoom}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={true}
         onNodeClick={handleNodeClick}
+        onInit={(instance) => setReactFlowInstance(instance)}
         panOnScroll={true}
         zoomOnScroll={true}
-        minZoom={0.1}
-        maxZoom={2}
         style={{ 
-          // width: '100%', 
-          // height: '100%',
-          // minHeight: 400,
           flex: 1,
         }}
       >

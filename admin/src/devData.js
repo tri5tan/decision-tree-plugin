@@ -1,6 +1,6 @@
 /**
  * Mock data for local dev server.
- * Matches the shape returned by GET /wp-json/dt/v1/tree/{module_id}.
+ * Matches the shape returned by GET /wp-json/dt/v1/tree/{module_id} and related endpoints.
  * Used automatically when window.ctDT.restUrl is null (i.e. running via `npm run dev`).
  */
 
@@ -20,12 +20,61 @@ export const DEV_MODULES = [
 ];
 
 export const DEV_FIELD_GROUPS = [
-  { id: 'group_kb_submodule_fields', title: 'Knowledge Base Sub Module fields' },
-  { id: 'group_kb_module_fields', title: 'Knowledge Base Module Fields' },
+  { id: 'group_kb_submodule_fields', title: 'Knowledge Base Resource Steps' },
+  { id: 'group_kb_resource_fields', title: 'Knowledge Base Resource Fields' },
   { id: 'group_custom_tree', title: 'Custom Tree Schema' },
 ];
 
+export const DEV_RESOURCES = [
+  { id: 100, moduleId: 1, fieldGroupId: 'group_kb_resource_fields', title: 'Dog Control Tree A', moduleDecisionTree: true },
+  { id: 101, moduleId: 1, fieldGroupId: 'group_kb_resource_fields', title: 'Dog Control Tree B', moduleDecisionTree: true },
+  { id: 102, moduleId: 1, fieldGroupId: 'group_kb_resource_fields', title: 'Dog Control Notes', moduleDecisionTree: false },
+  { id: 200, moduleId: 2, fieldGroupId: 'group_kb_resource_fields', title: 'Food Act Steps', moduleDecisionTree: true },
+  { id: 201, moduleId: 2, fieldGroupId: 'group_custom_tree', title: 'Food Act Custom Tree', moduleDecisionTree: true },
+];
 
+/**
+ * Mock GET /wp-json/dt/v1/resources response.
+ * Simulates schema detection and resource filtering.
+ */
+export function mockGetResourcesResponse(moduleId, fieldGroupId) {
+  // Detect field group mode by simulating schema check
+  let fieldGroupMode = 'unknown';
+
+  if (fieldGroupId === 'group_kb_resource_fields') {
+    fieldGroupMode = 'resource';
+  } else if (fieldGroupId === 'group_kb_submodule_fields') {
+    fieldGroupMode = 'submodule';
+  } else if (fieldGroupId === 'group_custom_tree') {
+    fieldGroupMode = 'resource'; // Also has resource schema
+  }
+
+  // Filter resources by module + field group + tree enabled
+  const resources = (DEV_RESOURCES || [])
+    .filter(r => 
+      r.moduleId === moduleId && 
+      r.moduleDecisionTree && 
+      r.fieldGroupId === fieldGroupId
+    )
+    .map(r => ({ id: r.id, title: r.title }));
+
+  return {
+    fieldGroupMode,
+    resources,
+    ...(fieldGroupMode === 'submodule' && { 
+      message: 'This field group is submodule-type. Tree loads directly from module.' 
+    }),
+  };
+}
+
+// dev-data tree payloads are defined below, so references are resolved after declaration
+
+
+export const DEV_FIELD_TREE_MAP_BY_RESOURCE = {
+  100: null,
+  101: null,
+  200: null,
+};
 
 export const DEV_TREE_og = {
   nodes: [
@@ -121,19 +170,54 @@ export const DEV_TREE_og = {
   ],
 };
 
+DEV_FIELD_TREE_MAP_BY_RESOURCE[100] = DEV_TREE_og;
+DEV_FIELD_TREE_MAP_BY_RESOURCE[101] = {
+  nodes: DEV_TREE_og.nodes.slice(0, 3),
+  edges: DEV_TREE_og.edges.slice(0, 2),
+};
+DEV_FIELD_TREE_MAP_BY_RESOURCE[200] = {
+  nodes: [
+    {
+      id: 'sm-201',
+      data: {
+        postId: 201,
+        label: 'Start Food Act',
+        question: 'Is the premises a food business?',
+        content: '<p>Check registration and food safety practices.</p>',
+        callout: null,
+        legislation: [
+          { act: 'Food Act 2014', section: 'S.22 — Registration', url: '#' },
+        ],
+        linkStatus: 'complete',
+        isTerminal: false,
+      },
+    },
+  ],
+  edges: [],
+};
+
+// Custom under unsupported field group -> error path in dev
+DEV_FIELD_TREE_MAP_BY_RESOURCE[201] = {
+  code: 'schema_mismatch',
+  message: 'Resource uses an unsupported field group and is not available for tree editing.',
+};
+
 /**
- * Mock tree data mapped to field groups.
- * Only 'group_kb_submodule_fields' has valid tree data.
- * Other groups will return errors to simulate schema mismatch.
+ * Legacy helper; kept for backwards compatibility only.
+ * Resource-level tree data is authoritative in the new pattern.
  */
 export const DEV_FIELD_GROUP_TREE_MAP = {
-  'group_kb_submodule_fields': DEV_TREE_og,  // Valid schema
-  'group_kb_module_fields': {  // Error: missing required fields
+  // Field-group payloads are not used directly in the current React tree flow,
+  // but we keep these here for debugging / schema validation stubbing.
+  'group_kb_submodule_fields': DEV_TREE_og,
+  'group_kb_module_fields': {
     code: 'schema_error',
-    message: 'Field group "Knowledge Base Module Fields" does not match the required schema. Missing fields: question_text, decisions, info_callout_text.',
+    message:
+      'Field group "Knowledge Base Module Fields" does not match the required schema. Missing fields: question_text, decisions, info_callout_text.',
   },
-  'group_custom_tree': {  // Error: mismatched schema
+  'group_custom_tree': {
     code: 'schema_error',
-    message: 'Field group "Custom Tree Schema" has incompatible field names. Expected: question_text, decisions, info_callout_text. Found: custom_question, custom_choices.',
+    message:
+      'Field group "Custom Tree Schema" has incompatible field names. Expected: question_text, decisions, info_callout_text. Found: custom_question, custom_choices.',
   },
 };

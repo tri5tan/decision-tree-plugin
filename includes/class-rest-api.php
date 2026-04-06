@@ -48,6 +48,31 @@ class DT_Rest_API {
             ],
         ] );
 
+        register_rest_route( 'dt/v1', '/resources', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'get_resources' ],
+            'permission_callback' => '__return_true',
+            'args' => [
+                'module_id' => [
+                    'validate_callback' => fn( $v ) => is_numeric( $v ) && $v > 0,
+                    'sanitize_callback' => 'absint',
+                    'required' => false,
+                ],
+            ],
+        ] );
+
+        register_rest_route( 'dt/v1', '/tree-resource/(?P<resource_id>\d+)', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'get_tree_by_resource' ],
+            'permission_callback' => '__return_true',
+            'args'                => [
+                'resource_id' => [
+                    'validate_callback' => fn( $v ) => is_numeric( $v ) && $v > 0,
+                    'sanitize_callback' => 'absint',
+                ],
+            ],
+        ] );
+
         register_rest_route( 'dt/v1', '/node/(?P<post_id>\d+)', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'update_node' ],
@@ -144,6 +169,214 @@ class DT_Rest_API {
     }
 
     // -------------------------------------------------------------------------
+    // GET /wp-json/dt/v1/resources
+    // -------------------------------------------------------------------------
+
+    public function get_resources( WP_REST_Request $request ) {
+        $module_id      = $request->get_param( 'module_id' );
+        $field_group_id = $request->get_param( 'field_group_id' );
+
+        $field_group_mode = 'unknown';
+
+        // Detect field group role by schema inspection (see SCHEMA.md)
+        if ( $field_group_id ) {
+            $field_group_mode = decision_tree_get_field_group_mode( $field_group_id );
+
+            if ( $field_group_mode === 'unknown' ) {
+                return new WP_Error(
+                    'schema_mismatch',
+                    'Selected ACF field group does not match resource or submodule schema. ' .
+                        'See SCHEMA.md for required field definitions.',
+                    [ 'status' => 400 ],
+                );
+            }
+        }
+
+        // Resource mode: fetch modules with module_decision_tree == true
+        if ( $field_group_mode === 'resource' ) {
+            $args = [
+                'post_type'   => decision_tree_get_module_post_type(),
+                'post_status' => 'publish',
+                'numberposts' => -1,
+            ];
+
+            $resources = get_posts( $args );
+
+            $filtered = array_filter( $resources, function( $post ) use ( $module_id ) {
+                $is_enabled = get_field( decision_tree_get_field_resource_decision_tree(), $post->ID );
+                if ( ! $is_enabled ) {
+                    return false;
+                }
+
+                if ( $module_id ) {
+                    $parent = get_field( 'module_parent_subsection', $post->ID );
+                    return $this->relationship_contains_id( $parent, $module_id );
+                }
+
+                return true;
+            } );
+
+            return rest_ensure_response( [
+                'fieldGroupMode' => 'resource',
+                'resources' => array_values( array_map( fn( $p ) => [
+                    'id'    => $p->ID,
+                    'title' => $p->post_title,
+                ], $filtered ) ),
+            ] );
+        }
+
+        // Submodule mode: return empty resources list + message
+        if ( $field_group_mode === 'submodule' ) {
+            return rest_ensure_response( [
+                'fieldGroupMode' => 'submodule',
+                'resources' => [],
+                'message' => 'This field group is submodule-type. Tree loads directly from module.',
+            ] );
+        }
+
+        // No field group selected yet
+        return rest_ensure_response( [
+            'fieldGroupMode' => 'unknown',
+            'resources' => [],
+        ] );
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /wp-json/dt/v1/tree-resource/{resource_id}
+    // -------------------------------------------------------------------------
+
+    public function get_tree_by_resource( WP_REST_Request $request ) {
+        if ( ! function_exists( 'get_field' ) ) {
+            return new WP_Error( 'acf_missing', 'ACF Pro is required.', [ 'status' => 500 ] );
+        }
+
+        $resource_id = $request->get_param( 'resource_id' );
+        $resource = get_post( $resource_id );
+
+        if ( ! $resource || $resource->post_type !== decision_tree_get_module_post_type() ) {
+            return new WP_Error( 'resource_not_found', 'Resource not found.', [ 'status' => 404 ] );
+        }
+
+        $is_enabled = get_field( decision_tree_get_field_resource_decision_tree(), $resource_id );
+        if ( ! $is_enabled ) {
+            return new WP_Error( 'resource_not_tree_enabled', 'Resource decision tree is disabled.', [ 'status' => 404 ] );
+        }
+
+        $linked_subs = get_field( decision_tree_get_field_resource_linked_submodules(), $resource_id );
+        $submodule_ids = [];
+        if ( is_array( $linked_subs ) ) {
+            foreach ( $linked_subs as $item ) {
+                if ( is_object( $item ) && isset( $item->ID ) ) {
+                    $submodule_ids[] = $item->ID;
+                } elseif ( is_numeric( $item ) ) {
+                    $submodule_ids[] = (int) $item;
+                }
+            }
+        }
+
+        if ( empty( $submodule_ids ) ) {
+            return new WP_Error( 'no_nodes', 'No sub-modules found for this resource.', [ 'status' => 404 ] );
+        }
+
+        $all_sub_modules = get_posts( [
+            'post_type'   => decision_tree_get_submodule_post_type(),
+            'post_status' => [ 'publish', 'draft', 'pending', 'future', 'private' ],
+            'numberposts' => -1,
+            'post__in'    => $submodule_ids,
+        ] );
+
+        if ( empty( $all_sub_modules ) ) {
+            return new WP_Error( 'no_nodes', 'No sub-modules found for this resource.', [ 'status' => 404 ] );
+        }
+
+        return $this->build_tree_response( $all_sub_modules, $resource_id );
+    }
+
+    // helper to avoid duplicating node/edge build
+    private function build_tree_response( $sub_modules, $resource_id ) {
+        $nodes          = [];
+        $edges          = [];
+        $all_target_ids = [];
+
+        foreach ( $sub_modules as $post ) {
+            $node_id = 'sm-' . $post->ID;
+            $decisions = get_field( decision_tree_get_field_decisions(), $post->ID ) ?: [];
+            $meta_terminal = get_post_meta( $post->ID, '_dt_is_terminal', true );
+            $is_terminal   = ! empty( $decisions ) ? false : ( $meta_terminal === '1' );
+
+            $filled = 0;
+            foreach ( $decisions as $row ) {
+                $path = $row['decision_path'] ?? [];
+                if ( ! empty( $path ) ) {
+                    $filled++;
+                }
+            }
+
+            if ( $is_terminal ) {
+                $link_status = 'terminal';
+            } elseif ( $filled === count( $decisions ) && count( $decisions ) >= 2 ) {
+                $link_status = 'complete';
+            } elseif ( $filled > 0 ) {
+                $link_status = 'partial';
+            } else {
+                $link_status = 'empty';
+            }
+
+            $legislation = [];
+            foreach ( get_field( decision_tree_get_field_legislation(), $post->ID ) ?: [] as $leg ) {
+                $legislation[] = [
+                    'act'     => $leg['act']              ?? '',
+                    'section' => $leg['section']          ?? '',
+                    'url'     => $leg['legislation_link'] ?? '',
+                ];
+            }
+
+            $nodes[] = [
+                'id'   => $node_id,
+                'data' => [
+                    'postId'      => $post->ID,
+                    'label'       => $post->post_title,
+                    'question'    => get_field( decision_tree_get_field_question_text(), $post->ID ) ?: null,
+                    'content'     => apply_filters( 'the_content', $post->post_content ),
+                    'rawContent'  => $post->post_content,
+                    'callout'     => get_field( decision_tree_get_field_info_callout(), $post->ID ) ?: null,
+                    'legislation' => $legislation,
+                    'adminNotes'  => get_post_meta( $post->ID, '_dt_admin_notes', true ) ?: '',
+                    'isTerminal'  => $is_terminal,
+                    'linkStatus'  => $link_status,
+                ],
+            ];
+
+            foreach ( $decisions as $row ) {
+                $path = $row['decision_path'] ?? [];
+                $target_post_id = is_array( $path ) ? ( $path[0] ?? null ) : $path;
+                if ( ! $target_post_id ) continue;
+
+                $target_node_id   = 'sm-' . $target_post_id;
+                $all_target_ids[] = $target_node_id;
+
+                $edges[] = [
+                    'id'     => 'e-' . $post->ID . '-' . $target_post_id . '-' . strtolower( $row['decision_answer'] ?? 'x' ),
+                    'source' => $node_id,
+                    'target' => $target_node_id,
+                    'label'  => $row['decision_text'] ?? ( $row['decision_answer'] ?? '' ),
+                    'answer' => $row['decision_answer'] ?? '',
+                ];
+            }
+        }
+
+        $node_ids = array_column( $nodes, 'id' );
+        $root_candidates = array_values( array_diff( $node_ids, $all_target_ids ) );
+        $root_node_id = $root_candidates[0] ?? ( $node_ids[0] ?? null );
+
+        return rest_ensure_response( [
+            'rootNodeId' => $root_node_id,
+            'nodes'      => array_values( $nodes ),
+            'edges'      => array_values( $edges ),
+        ] );
+    }
+
+    // -------------------------------------------------------------------------
     // GET /wp-json/dt/v1/field-groups
     // -------------------------------------------------------------------------
 
@@ -184,6 +417,11 @@ class DT_Rest_API {
     public function get_tree( WP_REST_Request $request ) {
         if ( ! function_exists( 'get_field' ) ) {
             return new WP_Error( 'acf_missing', 'ACF Pro is required.', [ 'status' => 500 ] );
+        }
+
+        $resource_id = $request->get_param( 'resource_id' );
+        if ( $resource_id ) {
+            return $this->get_tree_by_resource( $request );
         }
 
         // Validate that a field group is selected and has required fields
@@ -232,7 +470,8 @@ class DT_Rest_API {
         // which can be unreliable across ACF versions.
         $all_sub_modules = get_posts( [
             'post_type'   => decision_tree_get_submodule_post_type(),
-            'post_status' => 'publish',
+            // Admin tree view should include drafts etc for editing; module runtime still filters by parent relationship.
+            'post_status' => [ 'publish', 'draft', 'pending', 'future', 'private' ],
             'numberposts' => -1,
         ] );
 
@@ -260,7 +499,7 @@ class DT_Rest_API {
             $node_id     = 'sm-' . $post->ID;
             $decisions   = get_field( decision_tree_get_field_decisions(), $post->ID ) ?: [];
             // terminal only if explicitly set by user (not auto-detected from empty decisions)
-            $meta_terminal = get_post_meta( $post->ID, '_ct_is_terminal', true );
+            $meta_terminal = get_post_meta( $post->ID, '_dt_is_terminal', true );
             $is_terminal   = ! empty( $decisions ) ? false : ( $meta_terminal === '1' );
 
             // Determine link completeness for admin colour coding.
@@ -300,7 +539,7 @@ class DT_Rest_API {
                     'rawContent'  => $post->post_content,
                     'callout'     => get_field( decision_tree_get_field_info_callout(), $post->ID ) ?: null,
                     'legislation' => $legislation,
-                    'adminNotes'  => get_post_meta( $post->ID, '_ct_admin_notes', true ) ?: '',
+                    'adminNotes'  => get_post_meta( $post->ID, '_dt_admin_notes', true ) ?: '',
                     'isTerminal'  => $is_terminal,
                     'linkStatus'  => $link_status,
                 ],
@@ -328,7 +567,7 @@ class DT_Rest_API {
 
         // Root node: prefer explicitly set start node, fall back to auto-detection.
         $node_ids        = array_column( $nodes, 'id' );
-        $explicit_start  = get_post_meta( $module_id, '_ct_start_node', true );
+        $explicit_start  = get_post_meta( $module_id, '_dt_start_node', true );
         if ( $explicit_start && in_array( $explicit_start, $node_ids, true ) ) {
             $root_node_id = $explicit_start;
         } else {
@@ -353,10 +592,10 @@ class DT_Rest_API {
 
         if ( isset( $body['start_node_id'] ) ) {
             if ( null === $body['start_node_id'] ) {
-                delete_post_meta( $module_id, '_ct_start_node' );
+                delete_post_meta( $module_id, '_dt_start_node' );
             } else {
                 $node_id = sanitize_text_field( $body['start_node_id'] );
-                update_post_meta( $module_id, '_ct_start_node', $node_id );
+                update_post_meta( $module_id, '_dt_start_node', $node_id );
             }
         }
 
@@ -391,22 +630,22 @@ class DT_Rest_API {
 
         // ── Update question_text ACF field ───────────────────────────────────
         if ( isset( $body['question_text'] ) ) {
-            update_field( 'question_text', sanitize_textarea_field( $body['question_text'] ), $post_id );
+            update_field( 'question_text', wp_kses_post( $body['question_text'] ), $post_id );
         }
 
         // ── Update best practice callout ─────────────────────────────────────
         if ( array_key_exists( 'callout', $body ) ) {
-            update_field( 'info_callout_text', sanitize_textarea_field( $body['callout'] ), $post_id );
+            update_field( 'info_callout_text', wp_kses_post( $body['callout'] ), $post_id );
         }
 
         // ── Admin notes (editor-only, never exposed to viewer) ───────────────
         if ( array_key_exists( 'admin_notes', $body ) ) {
-            update_post_meta( $post_id, '_ct_admin_notes', sanitize_textarea_field( $body['admin_notes'] ) );
+            update_post_meta( $post_id, '_dt_admin_notes', wp_kses_post( $body['admin_notes'] ) );
         }
 
         // ── Mark as terminal / end node ──────────────────────────────────────
         if ( isset( $body['is_terminal'] ) ) {
-            update_post_meta( $post_id, '_ct_is_terminal', $body['is_terminal'] ? '1' : '' );
+            update_post_meta( $post_id, '_dt_is_terminal', $body['is_terminal'] ? '1' : '' );
         }
 
         // ── Update body content (post_content) ───────────────────────────────
@@ -497,12 +736,13 @@ class DT_Rest_API {
     // -------------------------------------------------------------------------
 
     public function create_node( WP_REST_Request $request ) {
-        $body      = $request->get_json_params();
-        $title     = sanitize_text_field( $body['title']     ?? 'New Step' );
-        $module_id = absint(             $body['module_id'] ?? 0 );
+        $body        = $request->get_json_params();
+        $title       = sanitize_text_field( $body['title']     ?? 'New Step' );
+        $module_id   = absint(             $body['module_id'] ?? 0 );
+        $resource_id = absint(             $body['resource_id'] ?? 0 );
 
-        if ( ! $module_id ) {
-            return new WP_Error( 'missing_module', 'module_id is required.', [ 'status' => 400 ] );
+        if ( ! $module_id && ! $resource_id ) {
+            return new WP_Error( 'missing_parent', 'module_id or resource_id is required.', [ 'status' => 400 ] );
         }
 
         $post_id = wp_insert_post( [
@@ -516,7 +756,20 @@ class DT_Rest_API {
         }
 
         if ( function_exists( 'update_field' ) ) {
-            update_field( decision_tree_get_field_submodule_parent_module(), [ $module_id ], $post_id );
+            if ( $resource_id ) {
+                $linked = get_field( decision_tree_get_field_resource_linked_submodules(), $resource_id ) ?: [];
+                // store ID list
+                $linked_ids = array_map( fn( $item ) => is_object( $item ) ? $item->ID : (int) $item, (array) $linked );
+                $linked_ids[] = $post_id;
+                update_field( decision_tree_get_field_resource_linked_submodules(), $linked_ids, $resource_id );
+
+                // Also keep backward-compatible module parental linkage where possible
+                if ( $module_id ) {
+                    update_field( decision_tree_get_field_submodule_parent_module(), [ $module_id ], $post_id );
+                }
+            } elseif ( $module_id ) {
+                update_field( decision_tree_get_field_submodule_parent_module(), [ $module_id ], $post_id );
+            }
         }
 
         return rest_ensure_response( [
