@@ -1,4 +1,4 @@
-import { STATUS_COLORS, STATUS_LABELS, getStatusKey } from './nodeStatus';
+import { STATUS_COLORS, STATUS_LABELS, EDGE_COLORS, CHROME, getStatusKey } from '../config/theme';
 
 export default function ViewerSidebar({ node, outgoingEdges = [], onClose }) {
   const d         = node.data;
@@ -11,8 +11,8 @@ export default function ViewerSidebar({ node, outgoingEdges = [], onClose }) {
 
   return (
     <div style={{
-      width: 300, padding: 16, borderLeft: '1px solid #ddd',
-      background: '#fafafa', overflowY: 'auto', fontSize: 13, flexShrink: 0,
+      width: 300, padding: 16, borderLeft: `1px solid ${CHROME.panelBorder}`,
+      background: CHROME.panelBg, overflowY: 'auto', fontSize: 13, flexShrink: 0,
     }}>
       {/* Header with title */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -23,7 +23,7 @@ export default function ViewerSidebar({ node, outgoingEdges = [], onClose }) {
         </div>
         <button
           onClick={onClose}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1, color: '#888', flexShrink: 0 }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1, color: CHROME.textSubtle, flexShrink: 0 }}
           title="Close"
         >
           ×
@@ -31,41 +31,38 @@ export default function ViewerSidebar({ node, outgoingEdges = [], onClose }) {
       </div>
 
       {/* Status badge */}
-      <span style={{
+      {/* <span className='status-badge' style={{
         display: 'inline-block', padding: '2px 9px', borderRadius: 12,
         background: color, color: '#fff', fontSize: 11, marginBottom: 10,
       }}>
         {label}
-      </span>
+      </span> */}
 
       {/* Question — read-only */}
-      <Section title="Question prompt">
+      {/* UPDATE: removed for end user */}
+      {/* <Section title="Question prompt">
         {d.question
           ? <p style={{ margin: 0, lineHeight: 1.5 }}>{d.question}</p>
-          : <p style={{ margin: 0, color: d.isTerminal ? '#888' : '#aaa', fontStyle: 'italic' }}>
+          : <p style={{ margin: 0, color: d.isTerminal ? CHROME.textSubtle : CHROME.textPlaceholder, fontStyle: 'italic' }}>
               {d.isTerminal ? 'End node — no question' : 'No question set'}
             </p>
         }
-      </Section>
+      </Section> */}
 
       {/* Yes / No decision paths — read-only */}
       {!d.isTerminal && (
         <Section title="Decision paths">
-          {yesEdge ? (
+          {yesEdge && (
             <PathRow
-              answer="Yes" color="#2c6e49" bg="#eefaf2"
+              answer="Yes" color={EDGE_COLORS.yes.border} bg={EDGE_COLORS.yes.bg}
               label={yesEdge.data?.label}
             />
-          ) : (
-            <PathRow answer="Yes" color="#c0392b" bg="#fef0f0" label="Not linked" warn />
           )}
-          {noEdge ? (
+          {noEdge && (
             <PathRow
-              answer="No" color="#c0392b" bg="#fef0f0"
+              answer="No" color={EDGE_COLORS.no.border} bg={EDGE_COLORS.no.bg}
               label={noEdge.data?.label}
             />
-          ) : (
-            <PathRow answer="No" color="#c0392b" bg="#fef0f0" label="Not linked" warn />
           )}
         </Section>
       )}
@@ -80,7 +77,7 @@ export default function ViewerSidebar({ node, outgoingEdges = [], onClose }) {
       {/* Body content — read-only */}
       {d.content && (
         <Section title="Body content">
-          <div style={{ lineHeight: 1.55, fontSize: 12, color: '#444' }} dangerouslySetInnerHTML={{ __html: d.content }} />
+          <div style={{ lineHeight: 1.55, fontSize: 12, color: CHROME.textPrimary }} dangerouslySetInnerHTML={{ __html: d.content }} />
         </Section>
       )}
 
@@ -91,7 +88,7 @@ export default function ViewerSidebar({ node, outgoingEdges = [], onClose }) {
             {d.legislation.map((l, i) => (
               <li key={i} style={{ marginBottom: 5, lineHeight: 1.4 }}>
                 <a href={l.url} target="_blank" rel="noopener noreferrer"
-                   style={{ color: '#2563eb', fontSize: 12 }}>
+                   style={{ color: STATUS_COLORS.terminal, fontSize: 12 }}>
                   {l.act}{l.section ? ` — ${l.section}` : ''}
                 </a>
               </li>
@@ -108,7 +105,7 @@ function Section({ title, children }) {
     <div style={{ marginBottom: 14 }}>
       <div style={{
         fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em',
-        color: '#999', marginBottom: 5, fontWeight: 600,
+        color: CHROME.sectionLabel, marginBottom: 5, fontWeight: 600,
       }}>
         {title}
       </div>
@@ -130,7 +127,7 @@ function PathRow({ answer, color, bg, label, warn }) {
       }}>
         {answer}
       </span>
-      <span style={{ color: warn ? '#c0392b' : '#444', fontStyle: warn ? 'italic' : 'normal' }}>
+      <span style={{ color: warn ? STATUS_COLORS.orphan : CHROME.textPrimary, fontStyle: warn ? 'italic' : 'normal' }}>
         {label || '—'}
       </span>
     </div>

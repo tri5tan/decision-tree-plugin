@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import TreeEditor from './TreeEditor';
+import TreeEditor from './components/TreeEditor';
 import 'reactflow/dist/style.css';
 
 const container = document.getElementById('decision-tree-admin');

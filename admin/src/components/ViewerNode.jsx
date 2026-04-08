@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
-import { STATUS_COLORS, STATUS_META } from './nodeStatus';
-import { getNodeWidth } from './tree-layout-config';
+import { STATUS_COLORS, STATUS_META, CHROME, BADGE } from '../config/theme';
+import { getNodeWidth, TRUNCATE_BODY } from '../config/tree-layout-config';
 
 function truncate(str, n) {
   return str && str.length > n ? str.slice(0, n - 1) + '\u2026' : (str || '');
@@ -10,8 +10,8 @@ function truncate(str, n) {
 function Badge({ children, color = '#666' }) {
   return (
     <span style={{
-      background: '#deffe1',
-      color: '#404040',
+      background: BADGE.bg,
+      color: BADGE.text,
       borderRadius: 3,
       padding: '2px 6px 2px 4px',
       fontSize: 10,
@@ -35,17 +35,17 @@ const ViewerNode = memo(function ViewerNode({ data, selected }) {
   return (
     <div
       style={{
-        background:   '#fff',
-        color:        '#1a1a1a',
+        background:   CHROME.cardBg,
+        color:        CHROME.textStrong,
         borderRadius: 6,
         padding:      '12px 14px',
         width:        getNodeWidth(),
         boxSizing:    'border-box',
-        borderTop:    statusKey === 'orphan' ? '2px dashed #c0392b' : `2px solid ${selected ? accentColor : '#e5e7eb'}`,
-        borderRight:  statusKey === 'orphan' ? '2px dashed #c0392b' : `2px solid ${selected ? accentColor : '#e5e7eb'}`,
-        borderBottom: statusKey === 'orphan' ? '2px dashed #c0392b' : `2px solid ${selected ? accentColor : '#e5e7eb'}`,
-        borderLeft:   statusKey === 'orphan' ? `4px dashed #c0392b` : `4px solid ${accentColor}`,
-        boxShadow:    '0 2px 6px rgba(0,0,0,0.1)',
+        borderTop:    statusKey === 'orphan' ? '2px dashed ' + STATUS_COLORS.orphan : `2px solid ${selected ? accentColor : CHROME.cardBorderSubtle}`,
+        borderRight:  statusKey === 'orphan' ? '2px dashed ' + STATUS_COLORS.orphan : `2px solid ${selected ? accentColor : CHROME.cardBorderSubtle}`,
+        borderBottom: statusKey === 'orphan' ? '2px dashed ' + STATUS_COLORS.orphan : `2px solid ${selected ? accentColor : CHROME.cardBorderSubtle}`,
+        borderLeft:   statusKey === 'orphan' ? `4px dashed ${STATUS_COLORS.orphan}` : `4px solid ${accentColor}`,
+        boxShadow:    CHROME.cardShadow,
         fontFamily:   "Roboto, sans-serif",
         fontOpticalSizing: 'auto',
         fontWeight:   400,
@@ -55,9 +55,9 @@ const ViewerNode = memo(function ViewerNode({ data, selected }) {
     >
       {/* Non-interactive handles for visual continuity */}
       <Handle type="target" position={Position.Top}
-        style={{ width: 10, height: 10, background: '#ddd', border: '2px solid #aaa', top: -5, pointerEvents: 'none' }} />
+        style={{ width: 10, height: 10, background: CHROME.handleBg, border: `2px solid ${CHROME.handleBorder}`, top: -5, pointerEvents: 'none' }} />
       <Handle type="source" position={Position.Bottom}
-        style={{ width: 10, height: 10, background: '#ddd', border: '2px solid #aaa', bottom: -5, pointerEvents: 'none' }} />
+        style={{ width: 10, height: 10, background: CHROME.handleBg, border: `2px solid ${CHROME.handleBorder}`, bottom: -5, pointerEvents: 'none' }} />
 
       {/* Status icon row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -65,7 +65,7 @@ const ViewerNode = memo(function ViewerNode({ data, selected }) {
           {icon.icon}
         </span>
         {statusKey === 'start' && (
-          <span style={{ fontSize: 9, background: '#2c6e49', color: '#fff', borderRadius: 10, padding: '2px 7px', fontWeight: 700 }}>
+          <span style={{ fontSize: 9, background: STATUS_COLORS.start, color: '#fff', borderRadius: 10, padding: '2px 7px', fontWeight: 700 }}>
             START
           </span>
         )}
@@ -80,7 +80,7 @@ const ViewerNode = memo(function ViewerNode({ data, selected }) {
         fontSize: 14, 
         lineHeight: 1.4, 
         marginBottom: 8, 
-        color: '#404040',
+        color: CHROME.textPrimary,
       }}>
         {data.label}
       </div>
@@ -89,11 +89,11 @@ const ViewerNode = memo(function ViewerNode({ data, selected }) {
       {data.question && (
         <div style={{
           fontSize: 11, 
-          color: '#555', 
+          color: CHROME.textSecondary,
           fontStyle: 'italic',
           lineHeight: 1.35, 
           marginBottom: 6,
-          borderLeft: '2px solid #e5e7eb', 
+          borderLeft: `2px solid ${CHROME.cardBorderSubtle}`, 
           paddingLeft: 6,
         }}>
           {data.question}
@@ -104,13 +104,13 @@ const ViewerNode = memo(function ViewerNode({ data, selected }) {
       {data.content && (
         <div style={{
           fontSize: 11, 
-          color: '#666',
+          color: CHROME.textMuted,
           lineHeight: 1.35, 
           marginBottom: 6,
-          borderLeft: '2px solid #e5e7eb', 
+          borderLeft: `2px solid ${CHROME.cardBorderSubtle}`, 
           paddingLeft: 6,
         }}>
-          {truncate(data.content.replace(/<[^>]+>/g, ''), 80)}
+          {truncate(data.content.replace(/<[^>]+>/g, ''), TRUNCATE_BODY)}
         </div>
       )}
 

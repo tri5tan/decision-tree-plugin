@@ -2,6 +2,17 @@
  * Mock data for local dev server.
  * Matches the shape returned by GET /wp-json/dt/v1/tree/{module_id} and related endpoints.
  * Used automatically when window.ctDT.restUrl is null (i.e. running via `npm run dev`).
+ *
+ * Schema note (April 2026):
+ * - `display_order` has been removed from the ACF submodule field group. Node ordering in the
+ *   tree is now derived entirely from connection structure (root = node with no incoming edges).
+ * - A new `resource_type` select field has been added to submodule posts. The PHP REST API
+ *   now filters: only posts where resource_type = "Decision Tree Step" are included in the tree.
+ *   All other resource types ("File Download", "Image Gallery", etc.) are excluded.
+ *   This filtering happens in PHP before the REST response is built, so the tree JSON format
+ *   here is NOT affected — nodes in devData never carry resource_type.
+ * - New nodes created via the editor ("Add a step") automatically get resource_type set to
+ *   "Decision Tree Step" by the create_node REST handler.
  */
 
 
@@ -20,9 +31,9 @@ export const DEV_MODULES = [
 ];
 
 export const DEV_FIELD_GROUPS = [
-  { id: 'group_kb_submodule_fields', title: 'Knowledge Base Resource Steps' },
-  { id: 'group_kb_resource_fields', title: 'Knowledge Base Resource Fields' },
-  { id: 'group_custom_tree', title: 'Custom Tree Schema' },
+  { id: 'group_kb_submodule_fields', title: 'Knowledge Base Resource Steps', mode: 'submodule' },
+  { id: 'group_kb_resource_fields',  title: 'Knowledge Base Resource Fields', mode: 'resource' },
+  { id: 'group_custom_tree',         title: 'Custom Tree Schema',             mode: 'resource' },
 ];
 
 export const DEV_RESOURCES = [

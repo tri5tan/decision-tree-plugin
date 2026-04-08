@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { STATUS_COLORS, STATUS_LABELS, getStatusKey } from './nodeStatus';
+import { STATUS_COLORS, STATUS_LABELS, EDGE_COLORS, CHROME, getStatusKey } from '../config/theme';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 
@@ -29,6 +29,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
   const [bodyDraft,   setBodyDraft]   = useState(d.rawContent || '');
   const [savingBody,  setSavingBody]  = useState(false);
 
+  // Legislation management has more complex state due to the array structure and JSON import mode
   const [editingLeg,   setEditingLeg]   = useState(false);
   const [legDraft,     setLegDraft]     = useState([]);
   const [legSaving,    setLegSaving]    = useState(false);
@@ -200,8 +201,8 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
 
   return (
     <div style={{
-      width: 300, padding: 16, borderLeft: '1px solid #ddd',
-      background: '#fafafa', overflowY: 'auto', fontSize: 13, flexShrink: 0,
+      width: 300, padding: 16, borderLeft: `1px solid ${CHROME.panelBorder}`,
+      background: CHROME.panelBg, overflowY: 'auto', fontSize: 13, flexShrink: 0,
     }}>
       {/* Header with editable title */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -212,15 +213,15 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
                 value={titleDraft}
                 onChange={e => setTitleDraft(e.target.value)}
                 autoFocus
-                style={{ width: '100%', fontSize: 13, fontWeight: 700, padding: '3px 6px', borderRadius: 3, border: '1px solid #ccc', boxSizing: 'border-box' }}
+                style={{ width: '100%', fontSize: 13, fontWeight: 700, padding: '3px 6px', borderRadius: 3, border: `1px solid ${CHROME.inputBorder}`, boxSizing: 'border-box' }}
               />
               <div style={{ display: 'flex', gap: 5, marginTop: 5 }}>
                 <button onClick={saveTitle} disabled={savingTitle}
-                  style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
+                  style={{ background: STATUS_COLORS.start, color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
                   {savingTitle ? 'Saving…' : 'Save'}
                 </button>
                 <button onClick={() => setEditingTitle(false)}
-                  style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
+                  style={{ background: CHROME.btnNeutralBg, color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
                   Cancel
                 </button>
               </div>
@@ -229,7 +230,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             <h3 style={{ margin: 0, fontSize: 14, lineHeight: 1.4 }}>
               {d.label}
               <button onClick={() => { setTitleDraft(d.label); setEditingTitle(true); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#2c6e49', fontWeight: 600, marginLeft: 6, padding: 0 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: STATUS_COLORS.start, fontWeight: 600, marginLeft: 6, padding: 0 }}
                 title="Edit title"
               >✎</button>
             </h3>
@@ -237,7 +238,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
         </div>
         <button
           onClick={onClose}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1, color: '#888', flexShrink: 0 }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1, color: CHROME.textSubtle, flexShrink: 0 }}
           title="Close"
         >
           ×
@@ -264,7 +265,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             {canRemoveStart && (
               <button
                 onClick={() => onClearStart()}
-                style={{ background: 'none', border: '1px solid #2c6e49', color: '#2c6e49', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: 'none', border: `1px solid ${STATUS_COLORS.start}`, color: STATUS_COLORS.start, borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 ↺ Unset start
               </button>
@@ -272,7 +273,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             {canSetStart && (
               <button
                 onClick={() => onSetStart(node.id)}
-                style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: STATUS_COLORS.start, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 ▶ Set as start
               </button>
@@ -280,7 +281,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             {canMarkEnd && (
               <button
                 onClick={() => onMarkTerminal(node.id)}
-                style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: STATUS_COLORS.terminal, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 ■ Mark as end
               </button>
@@ -288,7 +289,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             {canUnmark && (
               <button
                 onClick={() => onUnmarkTerminal(node.id)}
-                style={{ background: 'none', border: '1px solid #2563eb', color: '#2563eb', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: 'none', border: `1px solid ${STATUS_COLORS.terminal}`, color: STATUS_COLORS.terminal, borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 Remove end
               </button>
@@ -304,7 +305,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           {!d.isTerminal && !editingQ && (
             <button
               onClick={() => { setQuestionDraft(d.question || ''); setEditingQ(true); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: '#2c6e49', fontWeight: 600 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: STATUS_COLORS.start, fontWeight: 600 }}
               title="Edit question"
             >
               ✎ edit
@@ -322,13 +323,13 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
               <button
                 onClick={saveQuestion}
                 disabled={saving}
-                style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}
+                style={{ background: STATUS_COLORS.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}
               >
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button
                 onClick={() => setEditingQ(false)}
-                style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}
+                style={{ background: CHROME.btnNeutralBg, color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}
               >
                 Cancel
               </button>
@@ -348,25 +349,25 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
         <Section title="Decision paths">
           {yesEdge ? (
             <EditablePathRow
-              answer="Yes" color="#2c6e49" bg="#eefaf2"
+              answer="Yes" color={EDGE_COLORS.yes.border} bg={EDGE_COLORS.yes.bg}
               label={yesEdge.data?.label} edgeId={yesEdge.id}
               sourcePostId={postId} onUpdateEdge={onUpdateEdge}
               onDelete={() => onDeleteEdge?.(yesEdge.id, 'Yes', node.id)}
             />
           ) : (
-            <EditablePathRow answer="Yes" color="#c0392b" bg="#fef0f0" label="⚠ not linked" warn />
+            <EditablePathRow answer="Yes" color={EDGE_COLORS.no.border} bg={EDGE_COLORS.no.bg} label="⚠ not linked" warn />
           )}
           {noEdge ? (
             <EditablePathRow
-              answer="No" color="#c0392b" bg="#fef0f0"
+              answer="No" color={EDGE_COLORS.no.border} bg={EDGE_COLORS.no.bg}
               label={noEdge.data?.label} edgeId={noEdge.id}
               sourcePostId={postId} onUpdateEdge={onUpdateEdge}
               onDelete={() => onDeleteEdge?.(noEdge.id, 'No', node.id)}
             />
           ) : (
-            <EditablePathRow answer="No" color="#c0392b" bg="#fef0f0" label="⚠ not linked" warn />
+            <EditablePathRow answer="No" color={EDGE_COLORS.no.border} bg={EDGE_COLORS.no.bg} label="⚠ not linked" warn />
           )}
-          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: CHROME.textPlaceholder, fontStyle: 'italic' }}>
             Drag from a node handle to create a new connection.
           </p>
         </Section>
@@ -379,7 +380,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           {!editingCallout && (
             <button
               onClick={() => { setCalloutDraft(d.callout || ''); setEditingCallout(true); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: '#2c6e49', fontWeight: 600 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: STATUS_COLORS.start, fontWeight: 600 }}
             >
               ✎ {d.callout ? 'Edit' : 'Add'}
             </button>
@@ -394,11 +395,11 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             />
             <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
               <button onClick={saveCallout} disabled={savingCallout}
-                style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: STATUS_COLORS.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {savingCallout ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => setEditingCallout(false)}
-                style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: CHROME.btnNeutralBg, color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 Cancel
               </button>
             </div>
@@ -406,7 +407,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
         ) : (
           d.callout
             ? <div style={{ margin: 0, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: d.callout }} />
-            : <p style={{ margin: 0, color: '#aaa', fontStyle: 'italic', fontSize: 12 }}>None set</p>
+            : <p style={{ margin: 0, color: CHROME.textPlaceholder, fontStyle: 'italic', fontSize: 12 }}>None set</p>
         )}
       </Section>
 
@@ -417,7 +418,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           {!editingBody && (
             <button
               onClick={() => { setBodyDraft(d.rawContent || d.content || ''); setEditingBody(true); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: '#2c6e49', fontWeight: 600 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: STATUS_COLORS.start, fontWeight: 600 }}
             >
               ✎ {(d.rawContent || d.content) ? 'Edit' : 'Add'}
             </button>
@@ -430,22 +431,22 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
               value={bodyDraft}
               onChange={setBodyDraft}
             />
-            {/* <p style={{ margin: '4px 0 5px', fontSize: 10, color: '#aaa' }}>HTML tags are allowed (p, strong, em, ul, li…)</p> */}
+            {/* <p style={{ margin: '4px 0 5px', fontSize: 10, color: CHROME.textPlaceholder }}>HTML tags are allowed (p, strong, em, ul, li…)</p> */}
             <div style={{ display: 'flex', margin: '4px 0 5px', gap: 6 }}>
               <button onClick={saveBody} disabled={savingBody}
-                style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: STATUS_COLORS.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {savingBody ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => setEditingBody(false)}
-                style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: CHROME.btnNeutralBg, color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 Cancel
               </button>
             </div>
           </div>
         ) : (
           d.content
-            ? <div style={{ lineHeight: 1.55, fontSize: 12, color: '#444' }} dangerouslySetInnerHTML={{ __html: d.content }} />
-            : <p style={{ margin: 0, color: '#aaa', fontStyle: 'italic', fontSize: 12 }}>None set</p>
+            ? <div style={{ lineHeight: 1.55, fontSize: 12, color: CHROME.textPrimary }} dangerouslySetInnerHTML={{ __html: d.content }} />
+            : <p style={{ margin: 0, color: CHROME.textPlaceholder, fontStyle: 'italic', fontSize: 12 }}>None set</p>
         )}
       </Section>
 
@@ -456,7 +457,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           {!editingLeg && (
             <button
               onClick={() => { setLegDraft((d.legislation || []).map(l => ({ ...l }))); setEditingLeg(true); setLegJsonMode(false); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: '#2c6e49', fontWeight: 600 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: STATUS_COLORS.start, fontWeight: 600 }}
             >
               ✎ {d.legislation?.length > 0 ? 'Manage' : 'Add'}
             </button>
@@ -465,7 +466,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             <button
               onClick={() => copyLegJson(d.legislation)}
               title="Copy all as JSON"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: legCopied ? '#2c6e49' : 'inherit', fontWeight: 600 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: legCopied ? STATUS_COLORS.start : 'inherit', fontWeight: 600 }}
             >
               {legCopied ? '✓ Copied' : '⎘ Copy'}
             </button>
@@ -475,36 +476,36 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
         {editingLeg ? (
           <div>
             {legDraft.map((item, i) => (
-              <div key={i} style={{ marginBottom: 8, padding: '7px 8px', background: '#f5f5f5', borderRadius: 4, position: 'relative' }}>
+              <div key={i} style={{ marginBottom: 8, padding: '7px 8px', background: CHROME.rowBg, borderRadius: 4, position: 'relative' }}>
                 <button
                   onClick={() => setLegDraft(prev => prev.filter((_, j) => j !== i))}
-                  style={{ position: 'absolute', top: 4, right: 6, background: 'none', border: 'none', color: '#c0392b', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0 }}
+                  style={{ position: 'absolute', top: 4, right: 6, background: 'none', border: 'none', color: STATUS_COLORS.orphan, cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0 }}
                   title="Remove item"
                 >×</button>
                 <input
                   placeholder="Act name"
                   value={item.act}
                   onChange={e => setLegDraft(prev => prev.map((x, j) => j === i ? { ...x, act: e.target.value } : x))}
-                  style={{ width: '100%', fontSize: 12, padding: '3px 5px', borderRadius: 3, border: '1px solid #ccc', boxSizing: 'border-box', marginBottom: 3 }}
+                  style={{ width: '100%', fontSize: 12, padding: '3px 5px', borderRadius: 3, border: `1px solid ${CHROME.inputBorder}`, boxSizing: 'border-box', marginBottom: 3 }}
                 />
                 <input
                   placeholder="Section reference"
                   value={item.section}
                   onChange={e => setLegDraft(prev => prev.map((x, j) => j === i ? { ...x, section: e.target.value } : x))}
-                  style={{ width: '100%', fontSize: 11, padding: '3px 5px', borderRadius: 3, border: '1px solid #ccc', boxSizing: 'border-box', marginBottom: 3 }}
+                  style={{ width: '100%', fontSize: 11, padding: '3px 5px', borderRadius: 3, border: `1px solid ${CHROME.inputBorder}`, boxSizing: 'border-box', marginBottom: 3 }}
                 />
                 <input
                   placeholder="URL"
                   value={item.url}
                   onChange={e => setLegDraft(prev => prev.map((x, j) => j === i ? { ...x, url: e.target.value } : x))}
-                  style={{ width: '100%', fontSize: 11, padding: '3px 5px', backgroundColor: '#e4edf5', borderRadius: 3, border: '1px solid #ccc', boxSizing: 'border-box' }}
+                  style={{ width: '100%', fontSize: 11, padding: '3px 5px', backgroundColor: CHROME.inputBgReadonly, borderRadius: 3, border: `1px solid ${CHROME.inputBorder}`, boxSizing: 'border-box' }}
                 />
               </div>
             ))}
 
             <button
               onClick={() => setLegDraft(prev => [...prev, { act: '', section: '', url: '' }])}
-              style={{ fontSize: 11, color: '#2c6e49', background: 'none', border: '1px dashed #2c6e49', borderRadius: 3, padding: '3px 8px', cursor: 'pointer', marginBottom: 8, width: '100%' }}
+              style={{ fontSize: 11, color: STATUS_COLORS.start, background: 'none', border: `1px dashed ${STATUS_COLORS.start}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', marginBottom: 8, width: '100%' }}
             >
               + Add item
             </button>
@@ -513,7 +514,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             {!legJsonMode ? (
               <button
                 onClick={() => { setLegJsonDraft(JSON.stringify(legDraft, null, 2)); setLegJsonMode(true); setLegJsonError(''); }}
-                style={{ fontSize: 11, color: '#555', background: 'none', border: '1px solid #ddd', borderRadius: 3, padding: '3px 8px', cursor: 'pointer', marginBottom: 8, width: '100%' }}
+                style={{ fontSize: 11, color: CHROME.textSecondary, background: 'none', border: `1px solid ${CHROME.panelBorder}`, borderRadius: 3, padding: '3px 8px', cursor: 'pointer', marginBottom: 8, width: '100%' }}
               >
                 📋 Import / paste JSON
               </button>
@@ -524,28 +525,28 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
                   onChange={e => { setLegJsonDraft(e.target.value); setLegJsonError(''); }}
                   rows={6}
                   placeholder='[{"act": "", "section": "", "url": ""}]'
-                  style={{ width: '100%', fontSize: 11, boxSizing: 'border-box', padding: 5, borderRadius: 3, border: '1px solid #ccc', resize: 'vertical', fontFamily: 'monospace' }}
+                  style={{ width: '100%', fontSize: 11, boxSizing: 'border-box', padding: 5, borderRadius: 3, border: `1px solid ${CHROME.inputBorder}`, resize: 'vertical', fontFamily: 'monospace' }}
                 />
-                {legJsonError && <p style={{ margin: '3px 0 4px', fontSize: 10, color: '#c0392b' }}>⚠ {legJsonError}</p>}
+                {legJsonError && <p style={{ margin: '3px 0 4px', fontSize: 10, color: STATUS_COLORS.orphan }}>⚠ {legJsonError}</p>}
                 <div style={{ display: 'flex', gap: 5 }}>
-                  <button onClick={() => importLegJson('replace')} style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Replace all</button>
-                  <button onClick={() => importLegJson('append')}  style={{ background: '#555',    color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Append</button>
-                  <button onClick={() => setLegJsonMode(false)}    style={{ background: '#eee',    color: '#333', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={() => importLegJson('replace')} style={{ background: STATUS_COLORS.terminal, color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Replace all</button>
+                  <button onClick={() => importLegJson('append')}  style={{ background: CHROME.textSecondary,    color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Append</button>
+                  <button onClick={() => setLegJsonMode(false)}    style={{ background: CHROME.btnNeutralBg,    color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
                 </div>
               </div>
             )}
 
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <button onClick={() => persistLeg(legDraft)} disabled={legSaving}
-                style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: STATUS_COLORS.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {legSaving ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => { setEditingLeg(false); setLegJsonMode(false); }}
-                style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: CHROME.btnNeutralBg, color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 Cancel
               </button>
               <button onClick={() => copyLegJson(legDraft)} title="Copy draft as JSON"
-                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: legCopied ? '#2c6e49' : '#5d5d5d', fontWeight: 600, padding: 0 }}>
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: legCopied ? STATUS_COLORS.start : CHROME.textPrimary, fontWeight: 600, padding: 0 }}>
                 {legCopied ? '✓ Copied' : '⎘ Copy'}
               </button>
             </div>
@@ -564,13 +565,13 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
               <div>
                 {groups.map((g, gi) => (
                   <div key={gi} style={{ marginBottom: gi < groups.length - 1 ? 8 : 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 3 }}>{g.act}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: CHROME.textPrimary, marginBottom: 3 }}>{g.act}</div>
                     <ul style={{ margin: 0, paddingLeft: 14 }}>
                       {g.items.map((l, li) => (
                         <li key={li} style={{ marginBottom: 3, lineHeight: 1.4 }}>
                           {l.url
-                            ? <a href={l.url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontSize: 12 }}>{l.section || l.url}</a>
-                            : <span style={{ fontSize: 12, color: '#555' }}>{l.section || '—'}</span>
+                            ? <a href={l.url} target="_blank" rel="noopener noreferrer" style={{ color: STATUS_COLORS.terminal, fontSize: 12 }}>{l.section || l.url}</a>
+                            : <span style={{ fontSize: 12, color: CHROME.textSecondary }}>{l.section || '—'}</span>
                           }
                         </li>
                       ))}
@@ -580,7 +581,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
               </div>
             );
           })() : (
-            <p style={{ margin: 0, color: '#aaa', fontStyle: 'italic', fontSize: 12 }}>None set</p>
+            <p style={{ margin: 0, color: CHROME.textPlaceholder, fontStyle: 'italic', fontSize: 12 }}>None set</p>
           )
         )}
       </Section>
@@ -589,11 +590,11 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
       <Section title={
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           Admin notes
-          <span style={{ fontSize: 9, background: '#f0f0f0', color: '#888', borderRadius: 3, padding: '1px 5px', fontWeight: 600, letterSpacing: '0.04em' }}>EDITOR ONLY</span>
+          <span style={{ fontSize: 9, background: CHROME.btnNeutralBg, color: CHROME.textSubtle, borderRadius: 3, padding: '1px 5px', fontWeight: 600, letterSpacing: '0.04em' }}>EDITOR ONLY</span>
           {!editingNotes && (
             <button
               onClick={() => { setNotesDraft(d.adminNotes || ''); setEditingNotes(true); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: '#2c6e49', fontWeight: 600 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: STATUS_COLORS.start, fontWeight: 600 }}
             >
               ✎ {d.adminNotes ? 'edit' : 'add'}
             </button>
@@ -608,19 +609,19 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
             />
             <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
               <button onClick={saveNotes} disabled={savingNotes}
-                style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: STATUS_COLORS.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {savingNotes ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => setEditingNotes(false)}
-                style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: CHROME.btnNeutralBg, color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 Cancel
               </button>
             </div>
           </div>
         ) : (
           d.adminNotes
-            ? <div style={{ margin: 0, lineHeight: 1.5, fontSize: 12, color: '#555' }} dangerouslySetInnerHTML={{ __html: d.adminNotes }} />
-            : <p style={{ margin: 0, color: '#aaa', fontStyle: 'italic', fontSize: 12 }}>None</p>
+            ? <div style={{ margin: 0, lineHeight: 1.5, fontSize: 12, color: CHROME.textSecondary }} dangerouslySetInnerHTML={{ __html: d.adminNotes }} />
+            : <p style={{ margin: 0, color: CHROME.textPlaceholder, fontStyle: 'italic', fontSize: 12 }}>None</p>
         )}
       </Section>
 
@@ -632,7 +633,7 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           rel="noopener noreferrer"
           style={{
             display: 'inline-block', marginTop: 14, padding: '7px 14px',
-            background: '#2c6e49', color: '#fff', borderRadius: 4,
+            background: STATUS_COLORS.start, color: '#fff', borderRadius: 4,
             textDecoration: 'none', fontSize: 12,
           }}
         >
@@ -646,14 +647,14 @@ export default function NodeSidebar({ node, outgoingEdges = [], onClose, editPos
           <button
             onClick={() => onDeleteNode(node.id)}
             style={{
-              background: 'none', border: '1px solid #c0392b', color: '#c0392b',
+              background: 'none', border: `1px solid ${STATUS_COLORS.orphan}`, color: STATUS_COLORS.orphan,
               borderRadius: 4, padding: '6px 12px', fontSize: 12,
               cursor: 'pointer', width: '100%',
             }}
           >
             🗑 Delete this step
           </button>
-          <p style={{ margin: '5px 0 0', fontSize: 10, color: '#aaa', textAlign: 'center' }}>
+          <p style={{ margin: '5px 0 0', fontSize: 10, color: CHROME.textPlaceholder, textAlign: 'center' }}>
             Moves to WP trash. Existing connections to this step will be removed.
           </p>
         </div>
@@ -667,7 +668,7 @@ function Section({ title, children }) {
     <div className='section' style={{ marginBottom: 14 }}>
       <div style={{
         fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em',
-        color: '#5d5d5d', marginBottom: 5, fontWeight: 600,
+        color: CHROME.textPrimary, marginBottom: 5, fontWeight: 600,
       }}>
         {title}
       </div>
@@ -709,7 +710,7 @@ function RichTextEditor({ value, onChange }) {
     }
   }, [value]);
 
-  return <div ref={containerRef} style={{ minHeight: 120, border: '1px solid #ccc', borderRadius: 4 }} />;
+  return <div ref={containerRef} style={{ minHeight: 120, border: `1px solid ${CHROME.inputBorder}`, borderRadius: 4 }} />;
 }
 
 function EditablePathRow({ answer, color, bg, label, warn, edgeId, sourcePostId, onUpdateEdge, onDelete }) {
@@ -749,19 +750,19 @@ function EditablePathRow({ answer, color, bg, label, warn, edgeId, sourcePostId,
         </span>
         {!editing && !warn && (
           <>
-            <span style={{ color: '#444', flex: 1 }}>{label || '—'}</span>
+            <span style={{ color: CHROME.textPrimary, flex: 1 }}>{label || '—'}</span>
             <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
               {edgeId && (
                 <button
                   onClick={() => { setDraft(label || ''); setEditing(true); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: '#2c6e49', fontWeight: 600 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, color: STATUS_COLORS.start, fontWeight: 600 }}
                   title="Edit label"
                 >✎</button>
               )}
               {edgeId && onDelete && (
                 <button
                   onClick={() => window.confirm(`Remove the ${answer} connection from this node?`) && onDelete()}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, color: '#c0392b', fontWeight: 700, lineHeight: 1 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, color: STATUS_COLORS.orphan, fontWeight: 700, lineHeight: 1 }}
                   title="Remove connection"
                 >×</button>
               )}
@@ -769,7 +770,7 @@ function EditablePathRow({ answer, color, bg, label, warn, edgeId, sourcePostId,
           </>
         )}
         {!editing && warn && (
-          <span style={{ color: '#c0392b', fontStyle: 'italic' }}>{label}</span>
+          <span style={{ color: STATUS_COLORS.orphan, fontStyle: 'italic' }}>{label}</span>
         )}
       </div>
       {editing && (
@@ -778,15 +779,15 @@ function EditablePathRow({ answer, color, bg, label, warn, edgeId, sourcePostId,
             value={draft}
             onChange={e => setDraft(e.target.value)}
             autoFocus
-            style={{ width: '100%', fontSize: 12, padding: '3px 6px', borderRadius: 3, border: '1px solid #ccc', boxSizing: 'border-box' }}
+            style={{ width: '100%', fontSize: 12, padding: '3px 6px', borderRadius: 3, border: `1px solid ${CHROME.inputBorder}`, boxSizing: 'border-box' }}
           />
           <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
             <button onClick={save} disabled={saving}
-              style={{ background: '#2c6e49', color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
+              style={{ background: STATUS_COLORS.start, color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
               {saving ? 'Saving…' : 'Save'}
             </button>
             <button onClick={() => setEditing(false)}
-              style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
+              style={{ background: CHROME.btnNeutralBg, color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
               Cancel
             </button>
           </div>
@@ -810,7 +811,7 @@ function PathRow({ answer, color, bg, label, warn }) {
       }}>
         {answer}
       </span>
-      <span style={{ color: warn ? '#c0392b' : '#444', fontStyle: warn ? 'italic' : 'normal' }}>
+      <span style={{ color: warn ? STATUS_COLORS.orphan : CHROME.textPrimary, fontStyle: warn ? 'italic' : 'normal' }}>
         {label || '—'}
       </span>
     </div>

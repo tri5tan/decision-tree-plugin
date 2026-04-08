@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import TreeViewer from './TreeViewer';
+import TreeViewer from './components/TreeViewer';
 import 'reactflow/dist/style.css';
 
 const container = document.getElementById('decision-tree-viewer');
