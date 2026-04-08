@@ -3,14 +3,14 @@
  * Plugin Name: Decision Tree
  * Description: Decision tree admin editor (React Flow) and front-end step-by-step wizard
  *              for WordPress. Reads ACF Pro fields on by submodule posts and exposes them via a REST endpoint consumed by both UIs.
- * Version:     1.0.4
+ * Version:     1.0.6
  * Author:      Tristan
  * Text Domain: decision-tree
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'DT_VERSION', '1.0.4' );
+define( 'DT_VERSION', '1.0.6' );
 define( 'DT_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DT_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -46,8 +46,8 @@ function decision_tree_get_field_legislation() {
     return apply_filters( 'decision_tree_field_legislation', 'relevant_legislation' );
 }
 
-function decision_tree_get_field_order() {
-    return apply_filters( 'decision_tree_field_order', 'display_order' );
+function decision_tree_get_field_resource_type() {
+    return apply_filters( 'decision_tree_field_resource_type', 'resource_type' );
 }
 
 function decision_tree_get_field_resource_decision_tree() {
@@ -105,7 +105,6 @@ function decision_tree_get_field_group_mode( $field_group_id ) {
         decision_tree_get_field_decisions(),
         decision_tree_get_field_info_callout(),
         decision_tree_get_field_legislation(),
-        decision_tree_get_field_order(),
     ];
     $submodule_missing = array_diff( $submodule_required, $field_names );
     if ( empty( $submodule_missing ) ) {
@@ -118,6 +117,11 @@ function decision_tree_get_field_group_mode( $field_group_id ) {
 function decision_tree_get_admin_menu_parent() {
     return apply_filters( 'decision_tree_admin_menu_parent', false );
 }
+
+// Register under Knowledge Base Module by default
+add_filter( 'decision_tree_admin_menu_parent', function() {
+    return 'edit.php?post_type=ct-kb-module';
+} );
 
 require_once DT_PATH . 'includes/class-rest-api.php';
 require_once DT_PATH . 'includes/class-admin-page.php';
@@ -162,29 +166,20 @@ function dt_check_required_acf_fields() {
         return;
     }
 
-    // Build list of field names in this group
-    $field_names = wp_list_pluck( $fields, 'name' );
+    // Use schema detection rather than a hardcoded field list.
+    // Warn only if the saved group matches neither the resource nor the submodule schema.
+    $mode = decision_tree_get_field_group_mode( $field_group_id );
 
-    $required_fields = [
-        'sub_module_parent_module',
-        'question_text',
-        'decisions',
-        'info_callout_text',
-        'relevant_legislation',
-        'display_order',
-    ];
-
-    $missing = array_diff( $required_fields, $field_names );
-
-    if ( empty( $missing ) ) {
-        return;
+    if ( $mode !== 'unknown' ) {
+        return; // schema recognised — nothing to warn about
     }
 
-    add_action( 'admin_notices', function() use ( $missing ) {
-        $missing_list = esc_html( implode( ', ', $missing ) );
+    add_action( 'admin_notices', function() use ( $field_group_id ) {
+        $group = function_exists( 'acf_get_field_group' ) ? acf_get_field_group( $field_group_id ) : [];
+        $title = $group['title'] ?? $field_group_id;
         ?>
         <div class="notice notice-error">
-            <p><strong>Decision Tree:</strong> required ACF field(s) missing: <?php echo $missing_list; ?>. Please ensure the selected ACF field group contains these fields.</p>
+            <p><strong>Decision Tree:</strong> The selected ACF field group ("<?php echo esc_html( $title ); ?>") does not match the required schema. It should contain either the resource fields (<code>module_decision_tree</code>, <code>module_linked_sub_modules</code>) or the submodule step fields (<code>resource_type</code>, <code>question_text</code>, etc.). See SCHEMA.md for details.</p>
         </div>
         <?php
     } );

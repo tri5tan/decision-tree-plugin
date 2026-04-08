@@ -25,7 +25,7 @@ class DT_Admin_Page {
             add_submenu_page(
                 $parent,
                 'Decision Tree',
-                'Tree Editor',
+                'Decision Tree Editor',
                 'edit_posts',
                 'decision-tree-editor',
                 [ $this, 'render_admin_page' ]
@@ -72,6 +72,13 @@ class DT_Admin_Page {
             [],
             DT_VERSION
         );
+
+        // Remove WP's default .wrap top margin/padding so the editor sits flush
+        // under the toolbar. Height is set directly in the React component via
+        // calc(100vh - 50px) — no inheritance chain needed.
+        wp_add_inline_style( 'decision-tree-admin', '
+            #wpbody-content > .wrap { margin-top: 0; padding-top: 0; }
+        ' );
 
         // Make WP config available to the React app via window.dt.
         wp_localize_script( 'decision-tree-admin', 'dt', [

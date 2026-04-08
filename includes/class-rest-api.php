@@ -192,36 +192,29 @@ class DT_Rest_API {
             }
         }
 
-        // Resource mode: fetch modules with module_decision_tree == true
+        // Resource mode: return all module posts that have module_decision_tree enabled.
+        // Each such post IS a tree — no further parent filtering is applied because
+        // module_parent_subsection links to ct-kb-subsection (not ct-kb-module), so
+        // filtering by module_id here would always return zero results.
         if ( $field_group_mode === 'resource' ) {
-            $args = [
+            $all = get_posts( [
                 'post_type'   => decision_tree_get_module_post_type(),
                 'post_status' => 'publish',
                 'numberposts' => -1,
-            ];
+                'orderby'     => 'title',
+                'order'       => 'ASC',
+            ] );
 
-            $resources = get_posts( $args );
-
-            $filtered = array_filter( $resources, function( $post ) use ( $module_id ) {
-                $is_enabled = get_field( decision_tree_get_field_resource_decision_tree(), $post->ID );
-                if ( ! $is_enabled ) {
-                    return false;
-                }
-
-                if ( $module_id ) {
-                    $parent = get_field( 'module_parent_subsection', $post->ID );
-                    return $this->relationship_contains_id( $parent, $module_id );
-                }
-
-                return true;
-            } );
+            $trees = array_values( array_filter( $all, function( $post ) {
+                return (bool) get_field( decision_tree_get_field_resource_decision_tree(), $post->ID );
+            } ) );
 
             return rest_ensure_response( [
                 'fieldGroupMode' => 'resource',
-                'resources' => array_values( array_map( fn( $p ) => [
+                'resources' => array_map( fn( $p ) => [
                     'id'    => $p->ID,
                     'title' => $p->post_title,
-                ], $filtered ) ),
+                ], $trees ),
             ] );
         }
 
@@ -285,9 +278,14 @@ class DT_Rest_API {
             'post__in'    => $submodule_ids,
         ] );
 
-        if ( empty( $all_sub_modules ) ) {
-            return new WP_Error( 'no_nodes', 'No sub-modules found for this resource.', [ 'status' => 404 ] );
-        }
+        // // Only include steps typed as Decision Tree Step.
+        // $all_sub_modules = array_filter( $all_sub_modules, function( $post ) {
+        //     return get_field( 'resource_type', $post->ID ) === 'Decision Tree Step';
+        // } );
+
+        // if ( empty( $all_sub_modules ) ) {
+        //     return new WP_Error( 'no_nodes', 'No sub-modules found for this resource.', [ 'status' => 404 ] );
+        // }
 
         return $this->build_tree_response( $all_sub_modules, $resource_id );
     }
@@ -388,10 +386,12 @@ class DT_Rest_API {
         // Get all field groups (both local and database-stored)
         $groups = acf_get_field_groups();
 
-        // Filter and format for frontend
+        // Filter and format for frontend, including schema mode so the
+        // frontend can auto-select without additional round-trips.
         return array_map( fn( $g ) => [
-            'id'    => $g['key'] ?? '',    // ACF field group key (unique identifier)
+            'id'    => $g['key'] ?? '',
             'title' => $g['title'] ?? '',
+            'mode'  => decision_tree_get_field_group_mode( $g['key'] ?? '' ),
         ], $groups );
     }
 
@@ -452,7 +452,6 @@ class DT_Rest_API {
             'decisions',
             'info_callout_text',
             'relevant_legislation',
-            'display_order',
         ];
 
         $missing = array_diff( $required_fields, $field_names );
@@ -483,13 +482,6 @@ class DT_Rest_API {
         if ( empty( $sub_modules ) ) {
             return new WP_Error( 'no_nodes', 'No sub-modules found for this module.', [ 'status' => 404 ] );
         }
-
-        // Sort by display_order if set.
-        usort( $sub_modules, function( $a, $b ) {
-            $oa = (int) get_field( 'display_order', $a->ID );
-            $ob = (int) get_field( 'display_order', $b->ID );
-            return $oa <=> $ob;
-        } );
 
         $nodes          = [];
         $edges          = [];
@@ -756,6 +748,9 @@ class DT_Rest_API {
         }
 
         if ( function_exists( 'update_field' ) ) {
+            // Mark the new post as a Decision Tree Step so it's included in tree queries.
+            update_field( 'resource_type', 'Decision Tree Step', $post_id );
+
             if ( $resource_id ) {
                 $linked = get_field( decision_tree_get_field_resource_linked_submodules(), $resource_id ) ?: [];
                 // store ID list
