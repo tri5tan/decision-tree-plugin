@@ -114,6 +114,40 @@ npm run build
 - Changing public viewer UI or behaviour
 - Updating the tree render logic or node content
 
+### 🔧 Canvas rendering — CSS rules for React Flow elements
+
+React Flow renders nodes and edges inside a scaled/transformed `<div>`. At zoom levels other than 100%, the canvas transform is a fractional CSS `scale()`, which causes sub-pixel rendering issues for certain CSS properties.
+
+**Rule: never use `border` for outlines on canvas-rendered elements.**
+
+`border` (and `outline`) are part of the box model and get scaled with the element. At fractional zoom they round to the nearest physical pixel, which produces inconsistent widths, glitching, or complete disappearance at low zoom.
+
+**Use instead: `box-shadow: 0 0 0 Npx color`**
+
+`box-shadow` is rendered as a composited layer outside the box model and stays crisp at any scale:
+
+```css
+/* ❌ Breaks at non-100% zoom */
+border: 1px solid #ccc;
+
+/* ✅ Crisp at all zoom levels */
+box-shadow: 0 0 0 1px #ccc;
+
+/* ✅ Also fine for multi-ring outlines */
+box-shadow: 0 0 0 1px #ccc, 0 0 0 3px rgba(0,0,0,0.1);
+```
+
+This applies to:
+- Edge labels (`EdgeLabelRenderer` — `DecisionEdge.jsx`)
+- Custom node wrappers (`DTNode.jsx`, `ViewerNode.jsx`)
+- Any absolutely-positioned overlays inside the React Flow canvas
+
+**Other canvas rendering considerations:**
+- `border-radius` is fine — it scales correctly with the element.
+- `font-size` values below ~10px will become illegible on zoomed-out views; this is expected behaviour, not a bug.
+- `transform: translate(...)` values on canvas children are already in canvas-space coordinates — do not add additional CSS `scale()` transforms or they'll compound.
+- React Flow's `EdgeLabelRenderer` places labels in a separate DOM layer above the SVG edges but still inside the canvas viewport transform — the same sub-pixel rules apply.
+
 ---
 
 ## 3) Risks: likelihood, severity, and effort to fix

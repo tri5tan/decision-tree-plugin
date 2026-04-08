@@ -280,24 +280,25 @@ ACF field group applied to: Step/Submodule posts (post type determined by `decis
 
 ```typescript
 interface SubmoduleFieldGroup {
-  // Field 1: Relationship to parent resource
+  // Field 1: Resource type — must be "Decision Tree Step" for the plugin to include this post.
+  // Other types ("File Download", "Image Gallery", "Long Text", "External Links") are ignored.
+  resource_type: "Decision Tree Step" | "File Download" | "Image Gallery" | "Long Text" | "External Links";
+
+  // Field 2: Relationship to parent resource
   sub_module_parent_module: ResourcePost[];
 
-  // Field 2: The yes/no question text
+  // Field 3: The yes/no question text
   // Must be null/empty for terminal (end) nodes
   question_text: string | null;
 
-  // Field 3: Decision branches (repeater of Yes/No buttons)
+  // Field 4: Decision branches (repeater of Yes/No buttons)
   decisions: Decision[];
 
-  // Field 4: Important callout/warning text
+  // Field 5: Important callout/warning text
   info_callout_text: string | null;
 
-  // Field 5: Relevant legislation references
+  // Field 6: Relevant legislation references
   relevant_legislation: Legislation[];
-
-  // Field 6: Sort order within parent resource
-  display_order: number;
 }
 
 interface Decision {
@@ -315,15 +316,15 @@ interface Legislation {
 
 | Field Name | Label | Type | Required | Description |
 |---|---|---|---|---|
-| `sub_module_parent_module` | Knowledge Base Parent Resource | Relationship | ✗ | Parent resource (bidirectional sync with `module_linked_sub_modules`) |
-| `question_text` | Question Text | Text | ✗ | Yes/No question prompt. Null for terminal nodes. |
-| `decisions` | Decisions | Repeater | ✗ | Yes/No decision branches (usually 2 rows within the repeater) |
+| `resource_type` | Knowledge Base Resource Type | Select | ✓ | Must be `"Decision Tree Step"` — posts with other values are excluded from the tree |
+| `sub_module_parent_module` | Knowledge Base Parent Module | Relationship | ✓ | Parent resource (bidirectional sync with `module_linked_sub_modules`) |
+| `question_text` | Decision Tree Question Text | Text | ✗ | Yes/No question prompt. Null for terminal nodes. |
+| `decisions` | Decision Tree Decisions | Repeater | ✗ | Yes/No decision branches (usually 2 rows within the repeater) |
 | `decisions[].decision_text` | Decision Text | Text | ✗ | Button label shown to user |
-| `decisions[].decision_answer` | Decision Answer | Radio | ✗ | Yes or No (case-sensitive) |
+| `decisions[].decision_answer` | Decision Answer | Radio | ✗ | `"Yes"` or `"No"` (string, case-sensitive) |
 | `decisions[].decision_path` | Decision Path | Relationship (ID) | ✗ | Target submodule post ID — **must be set to return format ID, not object** |
 | `info_callout_text` | Info Callout Text | Text | ✗ | Best practice callout/warning |
-| `relevant_legislation` | Relevant Legislation | Repeater | ✗ | Legislation references |
-| `display_order` | Display Order | Number | ✗ | Sort order within parent (ascending) |
+| `relevant_legislation` | Decision Tree Relevant Legislation | Repeater | ✗ | Legislation references |
 
 **Note on Future Extensibility**
 
@@ -416,12 +417,12 @@ function detectFieldGroupMode(fields: ACFField[]): FieldGroupMode {
     fieldNames.includes('module_linked_sub_modules');
   
   const hasSubmoduleSchema = [
+    'resource_type',
     'sub_module_parent_module',
     'question_text',
     'decisions',
     'info_callout_text',
     'relevant_legislation',
-    'display_order'
   ].every(name => fieldNames.includes(name));
   
   if (hasResourceSchema) return 'resource';
@@ -444,6 +445,7 @@ When data is stored in WordPress via ACF fields, it maps to the Tree structure l
 
 | ACF Field | Maps to Node Data Field | Notes |
 |---|---|---|
+| `resource_type` | (filter only) | Post excluded unless value is `"Decision Tree Step"` |
 | `post_title` | `data.label` | Node display label |
 | `question_text` | `data.question` | Yes/No question; null for terminal |
 | `info_callout_text` | `data.callout` | Best practice callout |
@@ -451,7 +453,8 @@ When data is stored in WordPress via ACF fields, it maps to the Tree structure l
 | `relevant_legislation` repeater | `data.legislation` | Array of legislation refs |
 | `decisions` repeater | `edges` (outgoing) | Each row with decision_answer creates one edge |
 | Post ID | `data.id` | Node identifier (format: `sm-{postId}`) |
-| `display_order` | (sort order) | Used for stable tree ordering |
+
+**Note on Yes/No layout:** After dagre auto-layout, node positions are post-processed so the Yes branch is always left and No always right. Depends on `decision_answer` values being exactly `"Yes"`/`"No"`. If not recognised, dagre's natural order (= repeater row order) applies as fallback.
 
 **Each `module` resource with `module_decision_tree = true` represents a tree source:**
 
@@ -535,6 +538,6 @@ See:
 
 ---
 
-**Last Updated:** 1 April 2026  
-**Version:** 1.1  
+**Last Updated:** 7 April 2026  
+**Version:** 1.2  
 **Used by:** decision-tree plugin (PHP), React admin UI (TypeScript), REST API, data extraction tools

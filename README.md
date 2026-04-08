@@ -304,30 +304,63 @@ Node shape:
 
 ```
 decision-tree/
-├── decision-tree.php          plugin entry, constants, requires
+├── decision-tree.php             plugin entry, constants, requires
 ├── includes/
-│   ├── class-rest-api.php        REST endpoints — reads ACF, returns JSON
-│   ├── class-admin-page.php      WP Admin menu page + asset enqueue
-│   ├── class-shortcode.php       [decision_tree] shortcode (wizard)
-│   └── class-viewer-shortcode.php [tree_viewer] shortcode (graph viewer)
+│   ├── class-rest-api.php           REST endpoints — reads ACF, returns JSON
+│   ├── class-admin-page.php         WP Admin menu page + asset enqueue
+│   ├── class-shortcode.php          [decision_tree] shortcode (wizard)
+│   └── class-viewer-shortcode.php   [tree_viewer] shortcode (graph viewer)
 ├── admin/
 │   ├── src/
-│   │   ├── index.jsx             React entry point (admin editor)
-│   │   ├── viewer-entry.jsx      React entry point (public viewer)
-│   │   ├── TreeEditor.jsx        React Flow graph + module selector (admin)
-│   │   ├── TreeViewer.jsx        React Flow graph (public, read-only)
-│   │   ├── ViewerNode.jsx        Custom node component for viewer
-│   │   ├── NodeSidebar.jsx       Node detail panel (admin only)
-│   │   └── nodeStatus.js         Status colors and metadata (shared)
-│   ├── dist/                     built output (admin.js, viewer.js, style.css) — gitignore or commit
-│   ├── index.html                dev harness for admin editor
-│   ├── viewer-dev.html           dev harness for tree viewer
+│   │   ├── index.jsx                React entry point (admin editor)
+│   │   ├── viewer-entry.jsx         React entry point (public viewer)
+│   │   ├── components/
+│   │   │   ├── DecisionEdge.jsx     Custom edge component
+│   │   │   ├── DTNode.jsx           Decision tree node (admin)
+│   │   │   ├── TreeEditor.jsx       React Flow graph + module selector (admin)
+│   │   │   ├── TreeViewer.jsx       React Flow graph (public, read-only)
+│   │   │   ├── ViewerNode.jsx       Custom node component for viewer
+│   │   │   ├── NodeSidebar.jsx      Node detail panel (admin only)
+│   │   │   └── ViewerSidebar.jsx    Node detail panel (viewer only)
+│   │   ├── config/
+│   │   │   ├── theme.js            Design tokens + colors
+│   │   │   └── tree-layout-config.js Layout algorithms configuration
+│   │   ├── hooks/
+│   │   │   └── useTreeEditor.js     React Hook for tree editing logic
+│   │   ├── utils/
+│   │   │   └── graphUtils.js        Graph manipulation utilities
+│   │   └── dev/
+│   │       ├── devData.js           Mock data for local dev
+│   │       └── tree.json            Sample tree structure
+│   ├── dist/
+│   │   ├── admin.js                 Built admin editor bundle
+│   │   ├── admin-decision-tree-admin.css    Admin editor styles
+│   │   ├── viewer.js                Built public viewer bundle
+│   │   └── viewer-decision-tree-admin.css   Viewer styles
+│   ├── index.html                   Dev harness for admin editor
+│   ├── viewer-dev.html              Dev harness for tree viewer
 │   ├── package.json
-│   └── vite.config.js            multi-entry build config
-└── public/
-    ├── wizard.js                 vanilla JS step-by-step wizard
-    ├── wizard.css                base styles (wizard only)
-    └── dev.html                  standalone wizard dev harness
+│   ├── package-lock.json
+│   ├── vite.config.js               Main Vite config
+│   ├── vite.admin.config.js         Admin build config
+│   └── vite.viewer.config.js        Viewer build config
+├── public/
+│   ├── wizard.js                    Vanilla JS step-by-step wizard
+│   ├── wizard.css                   Wizard base styles
+│   └── dev.html                     Standalone wizard dev harness
+├── data/
+│   └── field-groups/
+│       ├── acf-export-2026-03-01.json
+│       ├── acf-export-2026-03-30.json
+│       ├── acf-export-2026-03-30_KBResourceFields.json
+│       ├── acf-export-2026-04-07_ModuleFields.json
+│       └── acf-export-2026-04-07_ResourceFields.json
+├── docs/
+│   ├── MAINTAINABILITY_AND_SECURITY.md
+│   └── UI_IMPROVEMENT_PLAN.md
+├── README.md
+├── SCHEMA.md
+└── TODO.md
 ```
 
 ---
@@ -387,16 +420,17 @@ Then open **http://localhost:8080/dev.html**
 
 All commands run from the `admin/` directory unless noted.
 
-Compiles React source → `admin/dist/admin.js` + `admin/dist/viewer.js` + `admin/dist/style.css`. Always run before zipping/deploying.
+Compiles React source → `admin/dist/admin.js` + `admin/dist/admin-decision-tree-admin.css` + `admin/dist/viewer.js` + `admin/dist/viewer-decision-tree-admin.css`. Always run before zipping/deploying.
 
 ```bash
 npm run build
 ```
 
-The build creates two entry points:
+The build creates two entry points with separate stylesheets:
 - `admin.js` — admin tree editor
+- `admin-decision-tree-admin.css` — admin editor styles (React Flow + components)
 - `viewer.js` — public tree viewer
-- `style.css` — shared React Flow styles
+- `viewer-decision-tree-admin.css` — viewer styles (React Flow + components)
 
 > **Note:** `wizard.js` is vanilla JS with no build step — edit `public/wizard.js` directly.
 
