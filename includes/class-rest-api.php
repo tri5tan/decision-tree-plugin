@@ -192,10 +192,8 @@ class DT_Rest_API {
             }
         }
 
-        // Resource mode: return all module posts that have module_decision_tree enabled.
-        // Each such post IS a tree — no further parent filtering is applied because
-        // module_parent_subsection links to ct-kb-subsection (not ct-kb-module), so
-        // filtering by module_id here would always return zero results.
+        // Resource mode: return all module posts with module_decision_tree enabled,
+        // together with their parent topic (ct-kb-subsection) for UI hierarchy grouping.
         if ( $field_group_mode === 'resource' ) {
             $all = get_posts( [
                 'post_type'   => decision_tree_get_module_post_type(),
@@ -205,32 +203,87 @@ class DT_Rest_API {
                 'order'       => 'ASC',
             ] );
 
-            $trees = array_values( array_filter( $all, function( $post ) {
+            $tree_modules = array_values( array_filter( $all, function( $post ) {
                 return (bool) get_field( decision_tree_get_field_resource_decision_tree(), $post->ID );
             } ) );
 
+            // Build deduplicated topics list and attach topicId to each module.
+            $topics_map   = []; // keyed by topic post ID → title
+            $has_no_topic = false;
+
+            $modules_out = array_map( function( $post ) use ( &$topics_map, &$has_no_topic ) {
+                $parent   = get_field( decision_tree_get_field_module_parent_subsection(), $post->ID );
+                $topic_id = null;
+
+                // ACF relationship may return a post object or an ID depending on return_format setting.
+                if ( is_array( $parent ) && ! empty( $parent ) ) {
+                    $first = $parent[0];
+                    if ( is_object( $first ) && isset( $first->ID ) ) {
+                        $topic_id = (int) $first->ID;
+                        if ( ! isset( $topics_map[ $topic_id ] ) ) {
+                            $topics_map[ $topic_id ] = $first->post_title ?? get_the_title( $topic_id );
+                        }
+                    } elseif ( is_numeric( $first ) ) {
+                        $topic_id = (int) $first;
+                        if ( ! isset( $topics_map[ $topic_id ] ) ) {
+                            $topics_map[ $topic_id ] = get_the_title( $topic_id ) ?: (string) $topic_id;
+                        }
+                    }
+                } elseif ( is_object( $parent ) && isset( $parent->ID ) ) {
+                    $topic_id = (int) $parent->ID;
+                    if ( ! isset( $topics_map[ $topic_id ] ) ) {
+                        $topics_map[ $topic_id ] = $parent->post_title ?? get_the_title( $topic_id );
+                    }
+                } elseif ( is_numeric( $parent ) && $parent > 0 ) {
+                    $topic_id = (int) $parent;
+                    if ( ! isset( $topics_map[ $topic_id ] ) ) {
+                        $topics_map[ $topic_id ] = get_the_title( $topic_id ) ?: (string) $topic_id;
+                    }
+                }
+
+                if ( null === $topic_id ) {
+                    $has_no_topic = true;
+                }
+
+                return [
+                    'id'      => $post->ID,
+                    'title'   => $post->post_title,
+                    'topicId' => $topic_id,
+                ];
+            }, $tree_modules );
+
+            // Build sorted topics array; only add the no-topic sentinel when at least one
+            // module has no parent topic assigned.
+            $topics = [];
+            foreach ( $topics_map as $id => $title ) {
+                $topics[] = [ 'id' => $id, 'title' => $title ];
+            }
+            usort( $topics, fn( $a, $b ) => strcasecmp( $a['title'], $b['title'] ) );
+            if ( $has_no_topic ) {
+                $topics[] = [ 'id' => null, 'title' => 'No Topic assigned' ];
+            }
+
             return rest_ensure_response( [
                 'fieldGroupMode' => 'resource',
-                'resources' => array_map( fn( $p ) => [
-                    'id'    => $p->ID,
-                    'title' => $p->post_title,
-                ], $trees ),
+                'topics'         => $topics,
+                'modules'        => $modules_out,
             ] );
         }
 
-        // Submodule mode: return empty resources list + message
+        // Submodule mode — tree loads directly from module ID.
         if ( $field_group_mode === 'submodule' ) {
             return rest_ensure_response( [
                 'fieldGroupMode' => 'submodule',
-                'resources' => [],
-                'message' => 'This field group is submodule-type. Tree loads directly from module.',
+                'topics'         => [],
+                'modules'        => [],
+                'message'        => 'This field group is submodule-type. Tree loads directly from module.',
             ] );
         }
 
-        // No field group selected yet
         return rest_ensure_response( [
             'fieldGroupMode' => 'unknown',
-            'resources' => [],
+            'topics'         => [],
+            'modules'        => [],
         ] );
     }
 

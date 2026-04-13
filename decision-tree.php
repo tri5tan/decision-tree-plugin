@@ -3,14 +3,14 @@
  * Plugin Name: Decision Tree
  * Description: Decision tree admin editor (React Flow) and front-end step-by-step wizard
  *              for WordPress. Reads ACF Pro fields on by submodule posts and exposes them via a REST endpoint consumed by both UIs.
- * Version:     1.0.6
+ * Version:     1.0.7
  * Author:      Tristan
  * Text Domain: decision-tree
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'DT_VERSION', '1.0.6' );
+define( 'DT_VERSION', '1.0.7' );
 define( 'DT_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DT_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -56,6 +56,14 @@ function decision_tree_get_field_resource_decision_tree() {
 
 function decision_tree_get_field_resource_linked_submodules() {
     return apply_filters( 'decision_tree_field_resource_linked_submodules', 'module_linked_sub_modules' );
+}
+
+function decision_tree_get_field_module_parent_subsection() {
+    return apply_filters( 'decision_tree_field_module_parent_subsection', 'module_parent_subsection' );
+}
+
+function decision_tree_get_topic_post_type() {
+    return apply_filters( 'decision_tree_topic_post_type', 'ct-kb-subsection' );
 }
 
 function decision_tree_get_field_group_id() {
