@@ -6,7 +6,7 @@ The primary component is the **Admin Tree Editor** (WP Admin → Knowledge Base 
 
 The plugin also includes two optional front-end components:
 - **Front-end wizard** (`[decision_tree]`) — vanilla JS step-by-step guided flow for end users
-- **Front-end tree viewer** (`[tree_viewer]`) — read-only React Flow graph for reference/overview use
+- **Front-end tree viewer** (`[decision_tree_viewer]`) — read-only React Flow graph for reference/overview use
 
 All three read from the same data source: ACF Pro fields on `submodules` posts, via a lightweight REST API. No external services.
 
@@ -222,7 +222,7 @@ The tree viewer provides a **read-only, interactive graph visualisation** of a d
 ### When to use the viewer vs. wizard
 
 - **Wizard** (`[decision_tree]`): Guided step-by-step navigation. Best for users who need to follow a process and get an outcome.
-- **Viewer** (`[tree_viewer]`): Bird's-eye view of the entire tree structure. Best for users who want to understand the whole process at once, or for reference/documentation purposes.
+- **Viewer** (`[decision_tree_viewer]`): Bird's-eye view of the entire tree structure. Best for users who want to understand the whole process at once, or for reference/documentation purposes.
 
 Both shortcodes work independently and can be placed on different pages, or even on the same page for different use cases.
 
@@ -231,7 +231,7 @@ Both shortcodes work independently and can be placed on different pages, or even
 Place the shortcode in any Bricks Builder Code/Shortcode widget, page, or post:
 
 ```
-[tree_viewer module_id="123"]
+[decision_tree_viewer module_id="123"]
 ```
 
 Where `123` is the **post ID of the `main-module`** whose tree you want to visualise.
@@ -258,7 +258,7 @@ Each node displays:
 
 ### Technical notes
 
-- Loads React Flow library (~500KB gzipped) — only loads on pages with the `[tree_viewer]` shortcode
+- Loads React Flow library (~500KB gzipped) — only loads on pages with the `[decision_tree_viewer]` shortcode
 - Uses the same REST API endpoint as wizard and admin (`/wp-json/dt/v1/tree/{module_id}`)
 - Renders at 100vh height — best used on full-width pages or in dedicated sections
 - Built with the admin React app (shares dependencies and build process)
@@ -309,7 +309,7 @@ decision-tree/
 │   ├── class-rest-api.php           REST endpoints — reads ACF, returns JSON
 │   ├── class-admin-page.php         WP Admin menu page + asset enqueue
 │   ├── class-shortcode.php          [decision_tree] shortcode (wizard)
-│   └── class-viewer-shortcode.php   [tree_viewer] shortcode (graph viewer)
+│   └── class-viewer-shortcode.php   [decision_tree_viewer] shortcode (graph viewer)
 ├── admin/
 │   ├── src/
 │   │   ├── index.jsx                React entry point (admin editor)
