@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNodesState, useEdgesState, addEdge, type Node, type Edge } from "reactflow";
-import { getNodeHeight, getZoomBounds, getRootOffsets, getFitLevels } from "../config/tree-layout-config";
+import { getNodeHeight, getZoomBounds, getFitLevels, getLayoutSettings, setLayoutSettings as persistLayoutSettings } from "../config/tree-layout-config";
+import type { LayoutSettings } from "../config/tree-layout-config";
 import {
   applyDagreLayout,
   buildFlowNodes,
@@ -11,18 +12,16 @@ import {
 } from "../utils/graphUtils";
 import {
   DEV_MODULES,
+  DEV_TOPICS,
   DEV_TREE,
+  DEV_TREE_2,
+  DEV_TREE_3,
   DEV_MODULE_ID,
-  DEV_FIELD_GROUPS,
-  DEV_FIELD_TREE_MAP_BY_RESOURCE,
-  mockGetResourcesResponse,
 } from "../dev/devData";
 import type {
   Topic,
   Module,
   TopicGroup,
-  FieldGroup,
-  FieldGroupMode,
   StepData,
   EdgeData,
   ResourcesResponse,
@@ -30,20 +29,12 @@ import type {
 
 export default function useTreeEditor() {
   const IS_DEV = !window.dt?.restUrl; // true when running via `npm run dev`
-  const { restUrl, editPostUrl, subModulesUrl, fieldGroupId: initialFieldGroupId } = window.dt || {};
+  const { restUrl, editPostUrl, subModulesUrl } = window.dt || {};
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [modules, setModules] = useState<Module[]>([]);       // submodule-mode flat list
-  const [topics, setTopics] = useState<Topic[]>([]);           // resource-mode topic hierarchy
-  const [treeModules, setTreeModules] = useState<Module[]>([]); // resource-mode tree-enabled modules
+  const [topics, setTopics] = useState<Topic[]>([]);           // topic hierarchy
+  const [treeModules, setTreeModules] = useState<Module[]>([]); // tree-enabled modules
   const [treeModuleId, setTreeModuleId] = useState<number>(0);
-  const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>([]);
-  const [fieldGroupId, setFieldGroupId] = useState<string>(() => {
-    if (IS_DEV) return "";
-    return initialFieldGroupId || "";
-  });
-  const [fieldGroupMode, setFieldGroupMode] = useState<FieldGroupMode>("resource");
-  const [loadingFieldGroups, setLoadingFieldGroups] = useState(false);
   const [topicId, setTopicId] = useState<number | null>(() => {
     const stored = localStorage.getItem("decision_tree_default_topic_id");
     if (stored === "null") return null;
@@ -51,17 +42,13 @@ export default function useTreeEditor() {
     return stored && !isNaN(n) ? n : null;
   });
   const [moduleId, setModuleId] = useState<number>(() => {
-    if (IS_DEV) return DEV_MODULE_ID;
-
     const urlModule = Number(
       new URLSearchParams(window.location.search).get("module_id") || 0,
     );
     if (urlModule > 0) return urlModule;
-
-    const storedModule = Number(
-      localStorage.getItem("decision_tree_default_module_id") || 0,
-    );
-    return storedModule > 0 ? storedModule : 0;
+    const stored = Number(localStorage.getItem("decision_tree_default_module_id") || 0);
+    // In dev mode fall back to DEV_MODULE_ID if nothing stored; prod stays at 0 (no tree shown)
+    return stored > 0 ? stored : IS_DEV ? DEV_MODULE_ID : 0;
   });
   const [nodes, setNodes, onNodesChange] = useNodesState<StepData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([]);
@@ -85,13 +72,32 @@ export default function useTreeEditor() {
 
   const hasFittedRef = useRef(false);
   const fittedModuleRef = useRef<string | null>(null);
+  const nodesModuleRef = useRef<number | null>(null); // tracks which moduleId the current nodes belong to
 
-  // ── Derived: filtered modules by selected topic (resource mode) ────────────
+  // ── Layout settings state (persisted in localStorage via tree-layout-config) ─
+  const [layoutSettings, setLayoutSettings] = useState<LayoutSettings>(getLayoutSettings);
+
+  const handleLayoutSettingChange = useCallback((patch: Partial<LayoutSettings>) => {
+    setLayoutSettings(prev => ({ ...prev, ...patch }));
+    persistLayoutSettings(patch);
+    // Reset fitView so it refires after the reload (needed for both spacing and fitDepth changes)
+    hasFittedRef.current = false;
+    fittedModuleRef.current = null;
+    // Bounce moduleId to re-layout the tree with updated settings
+    if (moduleId > 0) {
+      const cur = moduleId;
+      setModuleId(0);
+      setTimeout(() => setModuleId(cur), 50);
+    }
+  }, [moduleId]);
+
+  // ── Derived ────────────────────────────────────────────────────────────────
   const filteredTTreeModules: Module[] = (() => {
-    if (topics.length === 0) return treeModules; // no topics — show all (backward compat)
-    if (topicId === null) return []; // user hasn't picked a topic yet
+    if (topics.length === 0 || topicId === null) return treeModules;
     return treeModules.filter((m) => m.topicId === topicId);
   })();
+
+  const selectedModuleTitle = treeModules.find((m) => m.id === moduleId)?.title ?? '';
 
   // ── Derived: topic groups (for rendering grouped select or list) ───────────
   const topicGroups: TopicGroup[] = (() => {
@@ -104,8 +110,10 @@ export default function useTreeEditor() {
 
   // ── Auto fitView on first load per module/resource ─────────────────────────
   useEffect(() => {
-    if (!reactFlowInstance || nodes.length === 0 || !rootNodeId) return;
-    const treeKey = fieldGroupMode === "resource" ? `r-${treeModuleId}` : `m-${moduleId}`;
+    // Guard: don't fire on stale nodes from the previous module.
+    // nodesModuleRef is stamped when the tree fetch actually loads nodes for moduleId.
+    if (!reactFlowInstance || nodes.length === 0 || !rootNodeId || nodesModuleRef.current !== moduleId) return;
+    const treeKey = `m-${moduleId}`;
     if (fittedModuleRef.current !== treeKey) {
       hasFittedRef.current = false;
       fittedModuleRef.current = treeKey;
@@ -114,197 +122,113 @@ export default function useTreeEditor() {
     hasFittedRef.current = true;
 
     const levels = getFitLevels();
+    const isShowAll = levels >= 99;
+    const isFew = levels <= 2;
     const subset = getNodesInFirstNLevels(nodes, edges, rootNodeId, levels);
     setTimeout(() => {
       reactFlowInstance.fitView({
         nodes: subset.length > 0 ? subset : undefined,
-        padding: 0.25,
-        minZoom: getZoomBounds().fitMinZoom,
-        maxZoom: getZoomBounds().fitMaxZoom,
+        padding: isShowAll ? 0.1 : isFew ? 0.15 : 0.25,
+        minZoom: isShowAll ? getZoomBounds().minZoom : getZoomBounds().fitMinZoom,
+        maxZoom: isFew ? Math.min(1.0, getZoomBounds().maxZoom) : getZoomBounds().fitMaxZoom,
         duration: 350,
       });
+
+      // // After fitView animation completes, apply sidebar offset for visual centering on page
+      // setTimeout(() => {
+      //   const sidebar = document.querySelector('.left-panel') as HTMLElement;
+      //   if (sidebar && reactFlowInstance) {
+      //     const sidebarWidth = sidebar.offsetWidth;
+      //     const offset = sidebarWidth / 2; // Offset by half sidebar width for visual centering
+          
+      //     // Get current viewport and shift it
+      //     const currentViewport = reactFlowInstance.getViewport?.();
+      //     if (currentViewport) {
+      //       reactFlowInstance.setViewport({
+      //         x: currentViewport.x + offset,
+      //         y: currentViewport.y,
+      //         zoom: currentViewport.zoom,
+      //       });
+      //     }
+      //   }
+      // }, 350); // Wait for fitView animation to complete
     }, 80);
-  }, [reactFlowInstance, nodes, edges, rootNodeId, moduleId, treeModuleId, fieldGroupMode]);
+  }, [reactFlowInstance, nodes, edges, rootNodeId, moduleId]);
 
-  // Fetch module list for the dropdown (requires editor login).
+  // Fetch topics + tree-enabled modules on mount (independent of module selection).
+  // Also handles auto-select: if no moduleId is set (or stored ID was deleted),
+  // picks the first tree-enabled module from the fetched list.
   useEffect(() => {
     if (IS_DEV) {
-      setModules(DEV_MODULES);
-      return;
-    }
-    fetch(restUrl + "modules", {
-      headers: { "X-WP-Nonce": window.dt?.nonce || "" },
-    })
-      .then((r) => r.json())
-      .then((data: Module[]) => setModules(data))
-      .catch(() => setError("Could not fetch module list."));
-  }, []);
-
-  // Fetch ACF field groups for the dropdown
-  useEffect(() => {
-    if (IS_DEV) {
-      setFieldGroups(DEV_FIELD_GROUPS);
-      return;
-    }
-    if (!restUrl) return;
-    setLoadingFieldGroups(true);
-    fetch(restUrl + "field-groups", {
-      headers: { "X-WP-Nonce": window.dt?.nonce || "" },
-    })
-      .then((r) => r.json())
-      .then((groups: FieldGroup[]) => {
-        setFieldGroups(groups);
-
-        // Auto-select a field group if none is saved yet.
-        // Prefer resource-mode groups, fall back to submodule-mode.
-        if (!initialFieldGroupId) {
-          const best =
-            groups.find((g) => g.mode === "resource") ||
-            groups.find((g) => g.mode === "submodule");
-          if (best) {
-            setFieldGroupId(best.id);
-            // Persist the selection so future page loads skip this step
-            fetch(restUrl + "field-group", {
-              method: "POST",
-              headers: {
-                "X-WP-Nonce": window.dt?.nonce || "",
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ id: best.id }),
-            }).catch(() => {});
-          }
+      setTopics(DEV_TOPICS);
+      setTreeModules(DEV_MODULES);
+      // Topic-aware auto-select: validate stored moduleId against stored topicId
+      setModuleId((prev) => {
+        const rawTopic = localStorage.getItem("decision_tree_default_topic_id");
+        const storedTopic = rawTopic && rawTopic !== "null" ? Number(rawTopic) : null;
+        const pool = storedTopic !== null
+          ? DEV_MODULES.filter((m: Module) => m.topicId === storedTopic)
+          : DEV_MODULES;
+        const validPool = pool.length > 0 ? pool : DEV_MODULES;
+        if (prev > 0 && validPool.some((m: Module) => m.id === prev)) return prev;
+        const firstId = validPool[0]?.id || 0;
+        if (firstId > 0) {
+          localStorage.setItem("decision_tree_default_module_id", String(firstId));
+          setTreeModuleId(firstId);
         }
-      })
-      .catch(() => setError("Could not fetch field groups."))
-      .finally(() => setLoadingFieldGroups(false));
-  }, []);
-
-  // Auto-select first module if none is selected (submodule mode)
-  useEffect(() => {
-    if (!moduleId && modules.length > 0 && fieldGroupId) {
-      setModuleId(modules[0].id);
-      localStorage.setItem("decision_tree_default_module_id", String(modules[0].id));
-    }
-  }, [modules, moduleId, fieldGroupId]);
-
-  // Fetch resource/module list for the selected module
-  useEffect(() => {
-    if (!moduleId || !fieldGroupId) {
-      setTopics([]);
-      setTreeModules([]);
-      setTreeModuleId(0);
+        return firstId;
+      });
       return;
     }
-
-    if (IS_DEV) {
-      const mockResponse = mockGetResourcesResponse(moduleId, fieldGroupId);
-      setFieldGroupMode(mockResponse.fieldGroupMode as FieldGroupMode);
-      setTopics(mockResponse.topics ?? []);
-      setTreeModules(mockResponse.modules ?? []);
-      const firstModule = (mockResponse.modules ?? [])[0];
-      setTreeModuleId(firstModule?.id || 0);
-      if (mockResponse.message) setError(mockResponse.message);
-      return;
-    }
-
-    const gp = encodeURIComponent(fieldGroupId || "");
-    fetch(`${restUrl}resources?module_id=${moduleId}&field_group_id=${gp}`, {
+    fetch(`${restUrl}resources`, {
       headers: { "X-WP-Nonce": window.dt?.nonce || "" },
     })
       .then((r) => r.json())
       .then((data: ResourcesResponse & { code?: string; message?: string }) => {
         if (data?.code) throw new Error(data.message || "Could not fetch module list.");
-
-        const mode: FieldGroupMode = data?.fieldGroupMode || "unknown";
-        const moduleList: Module[] = data?.modules ?? [];
-        const topicList: Topic[] = data?.topics ?? [];
-
-        setFieldGroupMode(mode);
-
-        if (mode === "submodule") {
-          setTopics([]);
-          setTreeModules([]);
-          setTreeModuleId(0);
-          return;
-        }
-
-        if (mode === "resource") {
-          setTopics(topicList);
-          setTreeModules(moduleList);
-          // Auto-select first module only when no topicId filter is active
-          if (topicId === null) {
-            setTreeModuleId(moduleList[0]?.id || 0);
-          } else {
-            const inTopic = moduleList.filter((m) => m.topicId === topicId);
-            setTreeModuleId(inTopic[0]?.id || 0);
+        const fetchedTopics = data?.topics ?? [];
+        const fetchedModules = data?.modules ?? [];
+        setTopics(fetchedTopics);
+        setTreeModules(fetchedModules);
+        // Topic-aware auto-select: validate stored moduleId against stored topicId
+        setModuleId((prev) => {
+          const rawTopic = localStorage.getItem("decision_tree_default_topic_id");
+          const storedTopic = rawTopic && rawTopic !== "null" ? Number(rawTopic) : null;
+          const pool = storedTopic !== null
+            ? fetchedModules.filter((m: Module) => m.topicId === storedTopic)
+            : fetchedModules;
+          const validPool = pool.length > 0 ? pool : fetchedModules;
+          if (prev > 0 && validPool.some((m: Module) => m.id === prev)) return prev;
+          const firstId = validPool[0]?.id || 0;
+          if (firstId > 0) {
+            localStorage.setItem("decision_tree_default_module_id", String(firstId));
+            setTreeModuleId(firstId);
           }
-          return;
-        }
-
-        setTopics([]);
-        setTreeModules([]);
-        setTreeModuleId(0);
-        if (data?.message) setError(data.message);
+          return firstId;
+        });
       })
       .catch((err: Error) => {
         setError(err.message || "Could not fetch module list.");
-        setTopics([]);
-        setTreeModules([]);
-        setTreeModuleId(0);
       });
-  }, [moduleId, fieldGroupId, IS_DEV, restUrl]);
+  }, []);
 
   // ── handleTopicChange ─────────────────────────────────────────────────────
   const handleTopicChange = useCallback((newTopicId: number | null) => {
     setTopicId(newTopicId);
     localStorage.setItem("decision_tree_default_topic_id", String(newTopicId));
-    setTreeModuleId(0); // clear selection so user picks a module under the new topic
-  }, []);
+    // Auto-select first module in the chosen topic
+    const inTopic = newTopicId === null
+      ? treeModules
+      : treeModules.filter((m) => m.topicId === newTopicId);
+    const firstId = inTopic[0]?.id || 0;
+    setModuleId(firstId);
+    setTreeModuleId(firstId);
+    localStorage.setItem("decision_tree_default_module_id", String(firstId));
+  }, [treeModules]);
 
-  // Handle field group change
-  const handleFieldGroupChange = useCallback(
-    (selectedId: string) => {
-      setFieldGroupId(selectedId);
-      setFieldGroupMode("resource");
-      setModuleId(0);
-      setTopics([]);
-      setTreeModules([]);
-      setTreeModuleId(0);
-
-      if (IS_DEV) return;
-
-      fetch(restUrl + "field-group", {
-        method: "POST",
-        headers: {
-          "X-WP-Nonce": window.dt?.nonce || "",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id: selectedId }),
-      })
-        .then((r) => {
-          if (!r.ok) {
-            return r.json().then((err) => {
-              throw new Error(
-                err?.message || "Could not save field group selection.",
-              );
-            });
-          }
-          return r.json();
-        })
-        .catch(() => setError("Could not save field group selection."));
-    },
-    [IS_DEV, restUrl],
-  );
-
-  // Fetch + layout tree whenever resourceId, moduleId, or fieldGroupId changes.
+  // Fetch + layout tree whenever moduleId changes.
   useEffect(() => {
-    if (!moduleId || fieldGroupId === "") {
-      setNodes([]);
-      setEdges([]);
-      return;
-    }
-
-    if (fieldGroupMode === "resource" && !treeModuleId) {
+    if (!moduleId) {
       setNodes([]);
       setEdges([]);
       return;
@@ -316,24 +240,10 @@ export default function useTreeEditor() {
 
     let loadData;
     if (IS_DEV) {
-      if (fieldGroupMode === "submodule") {
-        loadData = Promise.resolve(DEV_TREE);
-      } else {
-        loadData = Promise.resolve(
-          DEV_FIELD_TREE_MAP_BY_RESOURCE[treeModuleId] || {
-            code: "resource_not_found",
-            message: "Resource not configured for this module tree.",
-          },
-        );
-      }
+      const devTrees: Record<number, unknown> = { 1: DEV_TREE, 2: DEV_TREE_2, 3: DEV_TREE_3 };
+      loadData = Promise.resolve(devTrees[moduleId] ?? DEV_TREE);
     } else {
-      if (fieldGroupMode === "submodule") {
-        loadData = fetch(`${restUrl}tree/${moduleId}`).then((r) => r.json());
-      } else {
-        loadData = fetch(`${restUrl}tree-resource/${treeModuleId}`).then((r) =>
-          r.json(),
-        );
-      }
+      loadData = fetch(`${restUrl}tree/${moduleId}`).then((r) => r.json());
     }
 
     loadData
@@ -355,6 +265,7 @@ export default function useTreeEditor() {
         const rootId = data.rootNodeId || autoRoot;
         setRootNodeId(rootId);
 
+        nodesModuleRef.current = moduleId; // stamp before setNodes so fitView guard passes
         setNodes(computeReachability(statused, flowEdges, rootId));
         setEdges(flowEdges);
       })
@@ -364,7 +275,7 @@ export default function useTreeEditor() {
         setEdges([]);
       })
       .finally(() => setLoading(false));
-  }, [moduleId, fieldGroupId, treeModuleId, fieldGroupMode, IS_DEV]);
+  }, [moduleId, IS_DEV, restUrl]);
 
   // Recompute orphan / isRoot + hasIncoming whenever edges or root changes
   useEffect(() => {
@@ -976,7 +887,6 @@ export default function useTreeEditor() {
     editPostUrl,
     subModulesUrl,
     // Dropdowns
-    modules,
     topics,
     topicId,
     treeModules,
@@ -985,13 +895,12 @@ export default function useTreeEditor() {
     filteredTTreeModules,
     topicGroups,
     handleTopicChange,
-    fieldGroups,
-    fieldGroupId,
-    fieldGroupMode,
-    loadingFieldGroups,
     moduleId,
     setModuleId,
-    handleFieldGroupChange,
+    selectedModuleTitle,
+    // Layout settings
+    layoutSettings,
+    handleLayoutSettingChange,
     // Graph
     nodes,
     edges,

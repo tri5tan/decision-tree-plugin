@@ -17,9 +17,8 @@ export function getNodesInFirstNLevels(nodes: Node<StepData>[], edges: Edge<Edge
 
   const visited = new Set();
   let frontier = [rootId];
-  for (let depth = 0; depth <= levels; depth++) {
+  for (let depth = 0; depth < levels; depth++) {
     frontier.forEach((id) => visited.add(id));
-    if (depth === levels) break;
     const next: any = [];
     frontier.forEach((id) => {
       (childMap.get(id) || []).forEach((childId: any) => {

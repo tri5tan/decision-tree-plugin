@@ -7,7 +7,6 @@ interface DtWindowData {
   nonce: string;
   editPostUrl: string;
   subModulesUrl: string;
-  fieldGroupId: string;
 }
 
 declare global {

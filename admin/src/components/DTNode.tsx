@@ -210,7 +210,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
             paddingLeft: 6,
           }}
         >
-          {truncate(data.content.replace(/<[^>]+>/g, ""), TRUNCATE_BODY)}
+          {truncate(data.content.replace(/<\/?(p|br|li|div|h[1-6])[^>]*>/gi, " ").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\s{2,}/g, " ").trim(), TRUNCATE_BODY)}
         </div>
       )}
 

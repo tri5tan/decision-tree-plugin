@@ -28,11 +28,13 @@ export default function useTreeViewerLoader({ moduleId, IS_DEV, restUrl }: Optio
   edges: Edge<EdgeData>[];
   loading: boolean;
   error: string | null;
+  moduleTitle: string;
 } {
   const [nodes, setNodes] = useNodesState<StepData>([]);
   const [edges, setEdges] = useEdgesState<EdgeData>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [moduleTitle, setModuleTitle] = useState<string>('');
 
   useEffect(() => {
     if (!moduleId && !IS_DEV) return;
@@ -64,6 +66,7 @@ export default function useTreeViewerLoader({ moduleId, IS_DEV, restUrl }: Optio
         const visibleNodes = withReachability.filter(n => !n.data?.isOrphan);
         const visibleEdges = flowEdges.filter(e => !orphanIds.has(e.source) && !orphanIds.has(e.target));
 
+        setModuleTitle(data.moduleTitle || '');
         setNodes(visibleNodes);
         setEdges(visibleEdges);
       })
@@ -71,5 +74,5 @@ export default function useTreeViewerLoader({ moduleId, IS_DEV, restUrl }: Optio
       .finally(() => setLoading(false));
   }, [moduleId, IS_DEV, restUrl]);
 
-  return { nodes, edges, loading, error };
+  return { nodes, edges, loading, error, moduleTitle };
 }

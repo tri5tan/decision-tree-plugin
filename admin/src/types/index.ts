@@ -172,23 +172,6 @@ export interface TreeResponse {
 
 /** Response shape of GET /wp-json/dt/v1/resources. */
 export interface ResourcesResponse {
-  fieldGroupMode: FieldGroupMode;
-  /** Topics for grouping in the UI. Only present when fieldGroupMode = 'resource'. */
   topics: Topic[];
-  /** Tree-enabled modules. Only present when fieldGroupMode = 'resource'. */
   modules: Module[];
-  /** Info message (e.g. submodule-mode explanation). */
-  message?: string;
-}
-
-// ─── Field group detection ────────────────────────────────────────────────────
-
-/** How the selected ACF field group was classified by schema inspection. */
-export type FieldGroupMode = 'module' | 'resource' | 'unknown';
-
-/** An ACF field group as returned by GET /wp-json/dt/v1/field-groups. */
-export interface FieldGroup {
-  id: string;
-  title: string;
-  mode: FieldGroupMode;
 }

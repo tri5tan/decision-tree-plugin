@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -8,7 +8,8 @@ import ViewerNode from './ViewerNode';
 import ViewerSidebar from './ViewerSidebar';
 import DecisionEdge from './DecisionEdge';
 import { STATUS_COLORS, CHROME } from '../config/theme';
-import { getZoomBounds, getRootOffsets } from '../config/tree-layout-config';
+import { getZoomBounds, getFitLevels } from '../config/tree-layout-config';
+import { getNodesInFirstNLevels } from '../utils/graphUtils';
 import useTreeViewerLoader from '../hooks/useTreeViewerLoader';
 import type { Node } from 'reactflow';
 import type { StepData } from '../types';
@@ -21,35 +22,48 @@ export default function TreeViewer({ initialModuleId }: { initialModuleId: numbe
   const IS_DEV  = !window.dtViewer?.restUrl;
   const { restUrl = '' } = window.dtViewer || {};
 
-  const { nodes, edges, loading, error } = useTreeViewerLoader({
+  const { nodes, edges, loading, error, moduleTitle } = useTreeViewerLoader({
     moduleId: initialModuleId,
     IS_DEV,
     restUrl: restUrl ? restUrl.replace(/\/?$/, '/') : '',
   });
 
   const [selectedNode, setSelectedNode] = useState<Node<StepData> | null>(null);
-  const [reactFlowInstance, setReactFlowInstance] = useState<{
-    getZoom: () => number;
-    setViewport: (v: { x: number; y: number; zoom: number }) => void;
-  } | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
+  // Track whether we've already fitted view for this module to avoid repeated resets
+  const hasFittedRef = useRef(false);
+  const fittedModuleRef = useRef<string | null>(null);
+
+  // Auto fitView on first load per module — same as editor
   useEffect(() => {
     if (!reactFlowInstance || nodes.length === 0) return;
 
-    const rootNode = nodes.find((n) => n.data?.isRoot);
+    const rootNode = nodes.find((n) => (n as any).data?.isRoot);
     if (!rootNode) return;
 
-    const { x, y } = rootNode.position;
-    const { minZoom, maxZoom } = getZoomBounds();
-    const currentZoom = reactFlowInstance.getZoom();
-    const clampedZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom));
+    const treeKey = `viewer-${initialModuleId}`;
+    if (fittedModuleRef.current !== treeKey) {
+      hasFittedRef.current = false;
+      fittedModuleRef.current = treeKey;
+    }
 
-    reactFlowInstance.setViewport({
-      x: -x + 160,
-      y: -y + getRootOffsets().y,
-      zoom: clampedZoom,
-    });
-  }, [reactFlowInstance, nodes]);
+    if (hasFittedRef.current) return;
+    hasFittedRef.current = true;
+
+    const levels = getFitLevels();
+    const subset = getNodesInFirstNLevels(nodes, edges, rootNode.id, levels);
+
+    setTimeout(() => {
+      reactFlowInstance.fitView({
+        nodes: subset.length > 0 ? subset : undefined,
+        padding: 0.25,
+        minZoom: getZoomBounds().fitMinZoom,
+        maxZoom: getZoomBounds().fitMaxZoom,
+        duration: 350,
+      });
+    }, 80);
+  }, [reactFlowInstance, nodes, edges, initialModuleId]);
 
   const handleNodeClick = (_event: React.MouseEvent, node: Node<StepData>) => {
     setSelectedNode(node);
@@ -63,11 +77,29 @@ export default function TreeViewer({ initialModuleId }: { initialModuleId: numbe
     <div style={{ 
       width: '100%', 
       height: '100%',
-      // minHeight: 400,
+      minHeight: 500,
       background: CHROME.panelBg,
       fontFamily: 'Roboto, sans-serif',
       display: 'flex',
+      position: 'relative',
     }}>
+      {/* Module title overlay — top-left of canvas, no background */}
+      {moduleTitle && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            left: 16,
+            fontSize: 15,
+            fontWeight: 700,
+            color: CHROME.textStrong,
+            pointerEvents: 'none',
+            zIndex: 5,
+          }}
+        >
+          {moduleTitle}
+        </div>
+      )}
       {loading && (
         <div style={{
           position: 'absolute', 
@@ -107,8 +139,6 @@ export default function TreeViewer({ initialModuleId }: { initialModuleId: numbe
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2, minZoom: getZoomBounds().fitMinZoom, maxZoom: getZoomBounds().fitMaxZoom }}
         minZoom={getZoomBounds().minZoom}
         maxZoom={getZoomBounds().maxZoom}
         nodesDraggable={false}
