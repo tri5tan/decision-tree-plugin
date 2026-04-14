@@ -66,13 +66,10 @@ The plugin reads these fields on `submodules` posts:
 **Location:** WP Admin → Decision Tree → **Editor**
 
 ### Quick-start order (recommended)
-1. Open WP Admin → Decision Tree 
-2. Select an ACF field group from the dropdown (if not already selected)
-3. Select a module from the module selector
-4. See the full decision tree as a graph
-5. Click any node to edit or link to the sub-module in WP Admin
-
-The plugin now lets you choose both the ACF field group and the module directly in the editor — no separate Settings page needed.
+1. Open WP Admin → Decision Tree → Editor
+2. Select a topic and a module from the dropdowns
+3. See the full decision tree as a graph
+4. Click any node to edit or link to the sub-module (aka: submodule; resource; step;) in WP Admin
 
 ### Node colours
 
@@ -85,17 +82,13 @@ The plugin now lets you choose both the ACF field group and the module directly 
 
 **Click any node** to open the detail sidebar showing question text, callout, legislation, and a direct link to edit that sub-module in WP Admin.
 
-### ACF field group selection
-
-Choose the ACF field group that contains your submodule fields from the **ACF Field Group** dropdown in the editor. The plugin will read the hardcoded field names (`question_text`, `decisions`, `info_callout_text`, etc.) from that group. If you select the wrong group or the fields don't exist, the tree will show empty data.
-
 ### Two-pass workflow for building a new tree
 
 Because a decision link can only point to a sub-module that already exists:
 
 1. **First pass:** Create all sub-module posts with titles and content. Leave the `Decisions` repeater empty.
 2. **Second pass:** Open each sub-module and fill in the `Decisions` repeater, linking to the targets you created in step 1.
-3. **Verify:** Open Tree View, select the module, confirm all nodes are green or blue.
+3. **Verify:** Open Tree Editor, select the module, confirm all nodes are green or blue.
 
 ---
 
@@ -231,10 +224,12 @@ Both shortcodes work independently and can be placed on different pages, or even
 Place the shortcode in any Bricks Builder Code/Shortcode widget, page, or post:
 
 ```
-[decision_tree_viewer module_id="123"]
+[decision_tree_viewer module_id="123" height="800px"]
 ```
 
-Where `123` is the **post ID of the `main-module`** whose tree you want to visualise.
+**Parameters:**
+- `module_id` (required) — **post ID of the `main-module`** whose tree you want to visualise
+- `height` (optional, default `500px`) — desired height of the viewer (e.g. `800px`, `100vh`, `inherit`)
 
 ### Features
 
@@ -439,7 +434,7 @@ The build creates two entry points with separate stylesheets:
 Run from the `plugin/` directory: (`cd plugin/` or `cd ../../` if in `admin/`)
 
 ```bash
-cd decision-tree/admin && rm -rf dist && npm run build && cd ../.. && rm -f decision-tree_plugin.zip && zip -r decision-tree_plugin.zip decision-tree/ --exclude "decision-tree/admin/node_modules/*" --exclude "decision-tree/admin/src/*" --exclude "decision-tree/admin/package.json" --exclude "decision-tree/admin/vite.*.config.js" --exclude "decision-tree/admin/index.html" --exclude "decision-tree/admin/viewer-dev.html" --exclude "decision-tree/README.md" --exclude "decision-tree/public/dev.html" && echo "Done: $(du -sh decision-tree_plugin.zip)"
+cd decision-tree/admin && rm -rf dist && npm run build && cd ../.. && rm -f builds/decision-tree_plugin.zip && zip -r builds/decision-tree_plugin.zip decision-tree/ --exclude "decision-tree/admin/node_modules/*" --exclude "decision-tree/admin/src/*" --exclude "decision-tree/admin/package.json" --exclude "decision-tree/admin/vite.*.config.js" --exclude "decision-tree/admin/index.html" --exclude "decision-tree/admin/viewer-dev.html" --exclude "decision-tree/README.md" --exclude "decision-tree/public/dev.html" && echo "Done: $(du -sh builds/decision-tree_plugin.zip)"
 ```
 
 Produces a ~168 KB `decision-tree_plugin.zip` in the `plugin/` directory, ready for **WP Admin → Plugins → Add New → Upload Plugin**.

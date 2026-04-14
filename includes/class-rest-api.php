@@ -114,25 +114,6 @@ class DT_Rest_API {
                 ],
             ],
         ] );
-
-        register_rest_route( 'dt/v1', '/field-groups', [
-            'methods'             => 'GET',
-            'callback'            => [ $this, 'get_field_groups' ],
-            'permission_callback' => [ $this, 'check_permission' ],
-        ] );
-
-        register_rest_route( 'dt/v1', '/field-group', [
-            'methods'             => 'POST',
-            'callback'            => [ $this, 'set_field_group' ],
-            'permission_callback' => [ $this, 'check_admin_permission' ],
-            'args'                => [
-                'id' => [
-                    'validate_callback' => fn( $v ) => is_string( $v ) && strlen( $v ) > 0,
-                    'sanitize_callback' => 'sanitize_text_field',
-                    'required'          => true,
-                ],
-            ],
-        ] );
     }
 
     /**
@@ -173,29 +154,9 @@ class DT_Rest_API {
     // -------------------------------------------------------------------------
 
     public function get_resources( WP_REST_Request $request ) {
-        $module_id      = $request->get_param( 'module_id' );
-        $field_group_id = $request->get_param( 'field_group_id' );
-
-        $field_group_mode = 'unknown';
-
-        // Detect field group role by schema inspection (see SCHEMA.md)
-        if ( $field_group_id ) {
-            $field_group_mode = decision_tree_get_field_group_mode( $field_group_id );
-
-            if ( $field_group_mode === 'unknown' ) {
-                return new WP_Error(
-                    'schema_mismatch',
-                    'Selected ACF field group does not match resource or submodule schema. ' .
-                        'See SCHEMA.md for required field definitions.',
-                    [ 'status' => 400 ],
-                );
-            }
-        }
-
-        // Resource mode: return all module posts with module_decision_tree enabled,
+        // Returns all ct-kb-module posts that have decision trees enabled,
         // together with their parent topic (ct-kb-subsection) for UI hierarchy grouping.
-        if ( $field_group_mode === 'resource' ) {
-            $all = get_posts( [
+        $all = get_posts( [
                 'post_type'   => decision_tree_get_module_post_type(),
                 'post_status' => 'publish',
                 'numberposts' => -1,
@@ -263,27 +224,9 @@ class DT_Rest_API {
                 $topics[] = [ 'id' => null, 'title' => 'No Topic assigned' ];
             }
 
-            return rest_ensure_response( [
-                'fieldGroupMode' => 'resource',
-                'topics'         => $topics,
-                'modules'        => $modules_out,
-            ] );
-        }
-
-        // Submodule mode — tree loads directly from module ID.
-        if ( $field_group_mode === 'submodule' ) {
-            return rest_ensure_response( [
-                'fieldGroupMode' => 'submodule',
-                'topics'         => [],
-                'modules'        => [],
-                'message'        => 'This field group is submodule-type. Tree loads directly from module.',
-            ] );
-        }
-
         return rest_ensure_response( [
-            'fieldGroupMode' => 'unknown',
-            'topics'         => [],
-            'modules'        => [],
+            'topics'  => $topics,
+            'modules' => $modules_out,
         ] );
     }
 
@@ -428,91 +371,12 @@ class DT_Rest_API {
     }
 
     // -------------------------------------------------------------------------
-    // GET /wp-json/dt/v1/field-groups
-    // -------------------------------------------------------------------------
-
-    public function get_field_groups() {
-        if ( ! function_exists( 'acf_get_field_groups' ) ) {
-            return new WP_Error( 'acf_missing', 'ACF Pro is required.', [ 'status' => 500 ] );
-        }
-
-        // Get all field groups (both local and database-stored)
-        $groups = acf_get_field_groups();
-
-        // Filter and format for frontend, including schema mode so the
-        // frontend can auto-select without additional round-trips.
-        return array_map( fn( $g ) => [
-            'id'    => $g['key'] ?? '',
-            'title' => $g['title'] ?? '',
-            'mode'  => decision_tree_get_field_group_mode( $g['key'] ?? '' ),
-        ], $groups );
-    }
-
-    // -------------------------------------------------------------------------
-    // POST /wp-json/dt/v1/field-group
-    // -------------------------------------------------------------------------
-
-    public function set_field_group( WP_REST_Request $request ) {
-        $field_group_id = $request->get_param( 'id' );
-
-        decision_tree_set_field_group_id( $field_group_id );
-
-        return [
-            'success' => true,
-            'fieldGroupId' => decision_tree_get_field_group_id(),
-        ];
-    }
-
-    // -------------------------------------------------------------------------
     // GET /wp-json/dt/v1/tree/{module_id}
     // -------------------------------------------------------------------------
 
     public function get_tree( WP_REST_Request $request ) {
         if ( ! function_exists( 'get_field' ) ) {
             return new WP_Error( 'acf_missing', 'ACF Pro is required.', [ 'status' => 500 ] );
-        }
-
-        $resource_id = $request->get_param( 'resource_id' );
-        if ( $resource_id ) {
-            return $this->get_tree_by_resource( $request );
-        }
-
-        // Validate that a field group is selected and has required fields
-        $field_group_id = decision_tree_get_field_group_id();
-        if ( empty( $field_group_id ) ) {
-            return [
-                'code'    => 'no_field_group',
-                'message' => 'No ACF field group selected. Please select one in the editor.',
-            ];
-        }
-
-        if ( ! function_exists( 'acf_get_fields' ) ) {
-            return new WP_Error( 'acf_missing', 'ACF Pro is required.', [ 'status' => 500 ] );
-        }
-
-        $fields = acf_get_fields( $field_group_id );
-        if ( ! is_array( $fields ) ) {
-            return [
-                'code'    => 'field_group_invalid',
-                'message' => 'Selected field group could not be found or accessed.',
-            ];
-        }
-
-        $field_names = wp_list_pluck( $fields, 'name' );
-        $required_fields = [
-            'sub_module_parent_module',
-            'question_text',
-            'decisions',
-            'info_callout_text',
-            'relevant_legislation',
-        ];
-
-        $missing = array_diff( $required_fields, $field_names );
-        if ( ! empty( $missing ) ) {
-            return [
-                'code'    => 'schema_mismatch',
-                'message' => 'Field group "' . acf_get_field_group( $field_group_id )['title'] . '" does not match the required schema. Missing fields: ' . implode( ', ', $missing ) . '.',
-            ];
         }
 
         $module_id = $request->get_param( 'module_id' );
@@ -621,9 +485,10 @@ class DT_Rest_API {
         }
 
         return rest_ensure_response( [
-            'rootNodeId' => $root_node_id,
-            'nodes'      => array_values( $nodes ),
-            'edges'      => array_values( $edges ),
+            'moduleTitle' => get_the_title( $module_id ),
+            'rootNodeId'  => $root_node_id,
+            'nodes'       => array_values( $nodes ),
+            'edges'       => array_values( $edges ),
         ] );
     }
 

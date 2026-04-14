@@ -22,8 +22,12 @@ class DT_Viewer_Shortcode {
     }
 
     public function render_shortcode( $atts ) {
-        $atts = shortcode_atts( [ 'module_id' => 0 ], $atts, 'decision_tree_viewer' );
+        $atts = shortcode_atts( [
+            'module_id' => 0,
+            'height'    => '500px',  // default height if not specified
+        ], $atts, 'decision_tree_viewer' );
         $module_id = absint( $atts['module_id'] );
+        $height    = sanitize_text_field( $atts['height'] );
 
         if ( ! $module_id ) {
             $module_id = decision_tree_get_default_module_id();
@@ -37,9 +41,10 @@ class DT_Viewer_Shortcode {
         $unique_id = 'decision-tree-viewer-' . wp_generate_uuid4();
 
         return sprintf(
-            '<div id="%s" class="decision-tree-viewer" data-module-id="%d" style="height: inherit;"></div>',
+            '<div id="%s" class="decision-tree-viewer" data-module-id="%d" style="height: %s;"></div>',
             $unique_id,
-            $module_id
+            $module_id,
+            $height
         );
     }
 

@@ -86,7 +86,6 @@ class DT_Admin_Page {
             'nonce'           => wp_create_nonce( 'wp_rest' ),
             'editPostUrl'     => admin_url( 'post.php' ),
             'subModulesUrl'   => admin_url( 'edit.php?post_type=' . decision_tree_get_submodule_post_type() ),
-            'fieldGroupId'    => decision_tree_get_field_group_id(),
         ] );
     }
 }
