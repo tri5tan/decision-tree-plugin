@@ -274,14 +274,14 @@ class DT_Rest_API {
             'post__in'    => $submodule_ids,
         ] );
 
-        // // Only include steps typed as Decision Tree Step.
-        // $all_sub_modules = array_filter( $all_sub_modules, function( $post ) {
-        //     return get_field( 'resource_type', $post->ID ) === 'Decision Tree Step';
-        // } );
+        // Only include steps typed as Decision Tree Step.
+        $all_sub_modules = array_filter( $all_sub_modules, function( $post ) {
+            return get_field( decision_tree_get_field_resource_type(), $post->ID ) === 'Decision Tree Step';
+        } );
 
-        // if ( empty( $all_sub_modules ) ) {
-        //     return new WP_Error( 'no_nodes', 'No sub-modules found for this resource.', [ 'status' => 404 ] );
-        // }
+        if ( empty( $all_sub_modules ) ) {
+            return new WP_Error( 'no_nodes', 'No sub-modules found for this resource.', [ 'status' => 404 ] );
+        }
 
         return $this->build_tree_response( $all_sub_modules, $resource_id );
     }
@@ -667,7 +667,7 @@ class DT_Rest_API {
 
         if ( function_exists( 'update_field' ) ) {
             // Mark the new post as a Decision Tree Step so it's included in tree queries.
-            update_field( 'resource_type', 'Decision Tree Step', $post_id );
+            update_field( decision_tree_get_field_resource_type(), 'Decision Tree Step', $post_id );
 
             if ( $resource_id ) {
                 $linked = get_field( decision_tree_get_field_resource_linked_submodules(), $resource_id ) ?: [];

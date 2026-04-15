@@ -61,9 +61,7 @@ export interface ModuleFields {
   /** Relationship → ct-kb-submodules post IDs. Steps/nodes in this tree. */
   module_linked_sub_modules: number[];
   /** Relationship → ct-kb-subsection post ID. Parent topic. */
-  module_parent_subsection: number[] | null;
-  /** Discriminator: "Steps or Decision Tree" | "Long Text" | "File Download". */
-  resource_type: 'Long Text' | 'Steps or Decision Tree' | 'File Download';
+  module_parent_subsection: number[] | null;  
 }
 
 /**
@@ -77,8 +75,8 @@ export interface StepFields {
    * Must be "Decision Tree Step" for the plugin to include this post.
    * Other values ("File Download", "Image Gallery", "Long Text", "External Links")
    * cause the post to be silently excluded from the tree.
-   */
-  resource_type: 'Decision Tree Step' | 'File Download' | 'Image Gallery' | 'Long Text' | 'External Links';
+   */  
+  resource_type: 'Decision Tree Step' | 'File Download' | 'Image Gallery' | 'Long Text' | 'External Links' | 'Checklist' | 'Video' | 'Chameleon Creator';
   /** Relationship → ct-kb-module post ID. Parent module (bidirectional with module_linked_sub_modules). */
   sub_module_parent_module: number[];
   /** Yes/No question prompt. Must be null/empty for terminal (end) nodes. */
