@@ -1,17 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ReactFlow, {
   Background,
   Controls,
   MiniMap,
+  Panel,
+  useViewport,
   type OnConnect,
   type OnConnectStart,
   type Node as FlowNode,
 } from "reactflow";
-import NodeSidebar from "./NodeSidebar";
-import TreeEditorSidebar from "./TreeEditorSidebar";
+import EditorNodePanel from "./EditorNodePanel";
+import EditorControlPanel from "./EditorControlPanel";
 import DTNode, { NodeCallbacks } from "./DTNode";
-import DecisionEdge from "./DecisionEdge";
-import { STATUS_COLORS, CHROME } from "../config/theme";
+import DecisionEdge, { EdgeCallbacks } from "./DecisionEdge";
+import { STATUS_COLORS_BUTTON, CHROME, getNodeMinimapColor } from "../config/theme";
 import { getZoomBounds } from "../config/tree-layout-config";
 import useTreeEditor from "../hooks/useTreeEditor";
 
@@ -19,9 +21,53 @@ import useTreeEditor from "../hooks/useTreeEditor";
 const nodeTypes = { "kb-node": DTNode };
 const edgeTypes = { "decision-edge": DecisionEdge };
 
+// ─── A4 guide overlay ─────────────────────────────────────────────────────────
+// A4 portrait with 10mm margins = 190mm usable = ~719 CSS px at 96dpi.
+// Rendered inside <ReactFlow> so useViewport() has access to the canvas transform.
+const A4_GUIDE_W = 719;
+
+function A4GuideOverlay() {
+  const { x, zoom } = useViewport();
+  return (
+    <div
+      style={{
+        position: "absolute",
+        pointerEvents: "none",
+        zIndex: 4,
+        left: x,
+        top: 0,
+        height: "100%",
+        width: A4_GUIDE_W * zoom,
+        borderRight: "2px dashed rgba(255, 140, 0, 0.75)",
+        background: "rgba(255, 180, 0, 0.04)",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 8,
+          right: 0,
+          transform: "translateX(50%)",
+          background: "rgba(200, 110, 0, 0.88)",
+          color: "#fff",
+          fontSize: 10,
+          fontWeight: 700,
+          padding: "2px 7px",
+          borderRadius: 3,
+          whiteSpace: "nowrap",
+          letterSpacing: "0.02em",
+        }}
+      >
+        A4 width
+      </div>
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function TreeEditor() {
   const [adminBarHeight, setAdminBarHeight] = useState(33); // Default to 33px, which is the typical height of the WP admin bar. This is used to set the editor's height so it doesn't get hidden behind the bar. We measure it on mount in case it's a different height (e.g. due to custom admin bar items or responsive layout).
+  const [showA4Guide, setShowA4Guide] = useState(false);
 
   useEffect(() => {
     const adminBar = document.getElementById("wpadminbar");
@@ -43,15 +89,28 @@ export default function TreeEditor() {
     addingNode, setAddingNode, newNodeTitle, setNewNodeTitle, creatingNode,
     pendingConn, setPendingConn, connSaving,
     pendingDragToNew, setPendingDragToNew, dragNewTitle, setDragNewTitle, dragNewSaving,
-    onNodeClick, onUpdateNode, onUpdateEdge,
+    onNodeClick, onUpdateNode, onUpdateEdge, selectNodeById,
     onConnectStart, onConnect, onConnectEnd,
     deleteEdge, confirmDragToNew, confirmConnect,
     clearStart, setAsStart, markAsTerminal, unmarkTerminal,
     deleteNode, createNode,
+    layoutLocked, layoutDirty, saveLayout, resetLayout,
+    fitForPrint,
   } = useTreeEditor();
+
+  // ── Print handler: keep a stable ref to the latest fitForPrint so the
+  //    beforeprint listener doesn't need to be re-registered on every render.
+  const fitForPrintRef = useRef(fitForPrint);
+  useEffect(() => { fitForPrintRef.current = fitForPrint; });
+  useEffect(() => {
+    const handler = () => fitForPrintRef.current?.();
+    window.addEventListener("beforeprint", handler);
+    return () => window.removeEventListener("beforeprint", handler);
+  }, []);
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
+    <EdgeCallbacks.Provider value={{ onDeleteEdge: deleteEdge }}>
     <NodeCallbacks.Provider
       value={{
         onMarkTerminal: markAsTerminal,
@@ -60,6 +119,27 @@ export default function TreeEditor() {
         onClearStart: clearStart,
       }}
     >
+      {/* ── Print styles ── */}
+      <style>{`
+        @page { size: A4 landscape; margin: 10mm; }
+        @media print {
+          /* Hide WP chrome and all panels — only canvas goes to paper */
+          #wpadminbar,
+          #adminmenuwrap,
+          #adminmenuback,
+          #wpfooter,
+          .left-panel,
+          .react-flow__controls,
+          .react-flow__minimap,
+          .react-flow__panel { display: none !important; }
+
+          /* Let the canvas fill the full printable area */
+          .tree-editor-window {
+            height: 100vh !important;
+            max-height: 100vh !important;
+          }
+        }
+      `}</style>
       <div
       className="tree-editor-window"
         style={{
@@ -71,7 +151,7 @@ export default function TreeEditor() {
         }}
       >
         {/* ── Left panel: module selector + legend ── */}
-        <TreeEditorSidebar
+        <EditorControlPanel
           IS_DEV={IS_DEV}
           subModulesUrl={subModulesUrl}
           moduleId={moduleId}
@@ -91,6 +171,8 @@ export default function TreeEditor() {
           createNode={createNode}
           layoutSettings={layoutSettings}
           handleLayoutSettingChange={handleLayoutSettingChange}
+          showA4Guide={showA4Guide}
+          setShowA4Guide={setShowA4Guide}
         />
 
         {/* ── Main canvas ── */}
@@ -158,7 +240,7 @@ export default function TreeEditor() {
                 background: CHROME.errorBg,
                 padding: "10px 14px",
                 borderRadius: 4,
-                color: STATUS_COLORS.orphan,
+                color: STATUS_COLORS_BUTTON.orphan,
                 fontSize: 13,
                 zIndex: 10,
               }}
@@ -191,17 +273,44 @@ export default function TreeEditor() {
             <Background color={CHROME.canvasGrid} gap={16} />
             <Controls />
             <MiniMap
-              nodeColor={(n: FlowNode) =>
-                STATUS_COLORS[
-                  (n.data?.isOrphan
-                    ? "orphan"
-                    : n.data?.isRoot
-                      ? "start"
-                      : n.data?.linkStatus) as keyof typeof STATUS_COLORS
-                ] || "#888"
-              }
+              nodeColor={(n: FlowNode) => getNodeMinimapColor(n.data)}
               style={{ background: CHROME.textSubtle }}
             />
+            {/* ── A4 guide overlay ── */}
+            {showA4Guide && <A4GuideOverlay />}
+            {/* ── Layout lock panel ── */}
+            {moduleId > 0 && (
+              <Panel position="top-right" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {layoutLocked && !layoutDirty && (
+                  <span style={{ fontSize: 11, color: CHROME.textMuted, padding: '4px 0' }}>Layout saved</span>
+                )}
+                {(layoutDirty || !layoutLocked) && (
+                  <button
+                    onClick={saveLayout}
+                    style={{
+                      fontSize: 11, padding: '4px 10px', borderRadius: 4,
+                      background: layoutDirty ? STATUS_COLORS_BUTTON.complete : CHROME.btnNeutralBg,
+                      color: layoutDirty ? '#fff' : CHROME.btnNeutralText,
+                      border: 'none', cursor: 'pointer', fontWeight: 600,
+                    }}
+                  >
+                    Save layout
+                  </button>
+                )}
+                {layoutLocked && (
+                  <button
+                    onClick={resetLayout}
+                    style={{
+                      fontSize: 11, padding: '4px 10px', borderRadius: 4,
+                      background: CHROME.btnNeutralBg, color: CHROME.btnNeutralText,
+                      border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    Auto-layout
+                  </button>
+                )}
+              </Panel>
+            )}
           </ReactFlow>
         </div>
 
@@ -257,7 +366,7 @@ export default function TreeEditor() {
                   style={{
                     flex: 1,
                     padding: "8px 0",
-                    background: STATUS_COLORS.start,
+                    background: STATUS_COLORS_BUTTON.start,
                     color: "#fff",
                     border: "none",
                     borderRadius: 4,
@@ -275,7 +384,7 @@ export default function TreeEditor() {
                   style={{
                     flex: 1,
                     padding: "8px 0",
-                    background: STATUS_COLORS.orphan,
+                    background: STATUS_COLORS_BUTTON.orphan,
                     color: "#fff",
                     border: "none",
                     borderRadius: 4,
@@ -358,7 +467,7 @@ export default function TreeEditor() {
                   style={{
                     flex: 1,
                     padding: "8px 0",
-                    background: STATUS_COLORS.start,
+                    background: STATUS_COLORS_BUTTON.start,
                     color: "#fff",
                     border: "none",
                     borderRadius: 4,
@@ -375,7 +484,7 @@ export default function TreeEditor() {
                   style={{
                     flex: 1,
                     padding: "8px 0",
-                    background: STATUS_COLORS.orphan,
+                    background: STATUS_COLORS_BUTTON.orphan,
                     color: "#fff",
                     border: "none",
                     borderRadius: 4,
@@ -412,7 +521,7 @@ export default function TreeEditor() {
         )}
 
         {selectedNode && (
-          <NodeSidebar
+          <EditorNodePanel
             node={selectedNode}
             outgoingEdges={selectedNode.outgoingEdges || []}
             onClose={() => setSelectedNode(null)}
@@ -421,6 +530,7 @@ export default function TreeEditor() {
             onUpdateEdge={onUpdateEdge}
             onDeleteEdge={deleteEdge}
             onDeleteNode={deleteNode}
+            onSelectNode={selectNodeById}
             onMarkTerminal={markAsTerminal}
             onSetStart={setAsStart}
             onUnmarkTerminal={unmarkTerminal}
@@ -429,5 +539,6 @@ export default function TreeEditor() {
         )}
       </div>
     </NodeCallbacks.Provider>
+    </EdgeCallbacks.Provider>
   );
 }
