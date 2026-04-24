@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNodesState, useEdgesState, addEdge, type Node, type Edge } from "reactflow";
-import { getNodeHeight, getZoomBounds, getFitLevels, getLayoutSettings, setLayoutSettings as persistLayoutSettings } from "../config/tree-layout-config";
+import { useNodesState, useEdgesState, addEdge, type Node, type Edge, type NodeChange } from "reactflow";
+import { getNodeHeight, getZoomBounds, getFitLevels, getLayoutSettings, getLayoutConfig, setLayoutSettings as persistLayoutSettings, PRINT_MAX_LEVELS } from "../config/tree-layout-config";
 import type { LayoutSettings } from "../config/tree-layout-config";
 import {
   applyDagreLayout,
@@ -9,6 +9,7 @@ import {
   recomputeNodeStatuses,
   computeReachability,
   getNodesInFirstNLevels,
+  applySavedPositions,
 } from "../utils/graphUtils";
 import {
   DEV_MODULES,
@@ -16,6 +17,8 @@ import {
   DEV_TREE,
   DEV_TREE_2,
   DEV_TREE_3,
+  DEV_TREE_4,
+  DEV_TREE_5,
   DEV_MODULE_ID,
 } from "../dev/devData";
 import type {
@@ -25,6 +28,7 @@ import type {
   StepData,
   EdgeData,
   ResourcesResponse,
+  LinkStatus,
 } from "../types";
 
 export default function useTreeEditor() {
@@ -68,6 +72,8 @@ export default function useTreeEditor() {
   const [dragNewTitle, setDragNewTitle] = useState("");
   const [dragNewSaving, setDragNewSaving] = useState(false);
   const [rootNodeId, setRootNodeId] = useState<string | null>(null);
+  const [layoutLocked, setLayoutLocked] = useState(false);  // true when saved positions are active
+  const [layoutDirty, setLayoutDirty] = useState(false);    // true when nodes dragged since last save
   const [reactFlowInstance, setReactFlowInstance] = useState<ReturnType<typeof useNodesState>[0] extends unknown ? any : never>(null); // typed via setReactFlowInstance usage
 
   const hasFittedRef = useRef(false);
@@ -240,7 +246,7 @@ export default function useTreeEditor() {
 
     let loadData;
     if (IS_DEV) {
-      const devTrees: Record<number, unknown> = { 1: DEV_TREE, 2: DEV_TREE_2, 3: DEV_TREE_3 };
+      const devTrees: Record<number, unknown> = { 1: DEV_TREE, 2: DEV_TREE_2, 3: DEV_TREE_3, 4: DEV_TREE_4, 5: DEV_TREE_5 };
       loadData = Promise.resolve(devTrees[moduleId] ?? DEV_TREE);
     } else {
       loadData = fetch(`${restUrl}tree/${moduleId}`).then((r) => r.json());
@@ -252,7 +258,12 @@ export default function useTreeEditor() {
 
         const flowNodes = buildFlowNodes(data.nodes);
         const flowEdges = buildFlowEdges(data.edges);
-        const laid = applyDagreLayout(flowNodes, flowEdges);
+        const hasSaved = data.savedPositions && Object.keys(data.savedPositions).length > 0;
+        const laid = hasSaved
+          ? applySavedPositions(flowNodes, data.savedPositions)
+          : applyDagreLayout(flowNodes, flowEdges);
+        setLayoutLocked(!!hasSaved);
+        setLayoutDirty(false);
         const statused = recomputeNodeStatuses(laid, flowEdges);
 
         // Use rootNodeId from PHP meta if set; otherwise auto-detect from edges
@@ -299,7 +310,47 @@ export default function useTreeEditor() {
     [edges],
   );
 
-  // Called by NodeSidebar after a successful save — updates the node in state
+  // Navigate the sidebar to a specific node by ID (used by decision path buttons).
+  // Updates React Flow selection state and pans the canvas to centre the target node.
+  // Zoom is preserved when already in a readable range; gently nudged if too far out/in.
+  const selectNodeById = useCallback(
+    (nodeId: string) => {
+      setNodes((prev) => {
+        const target = prev.find((n) => n.id === nodeId);
+        if (target) {
+          const outgoing = edges.filter((e) => e.source === nodeId);
+          setSelectedNode({ ...target, selected: true, outgoingEdges: outgoing });
+
+          // Pan canvas to centre the target node
+          if (reactFlowInstance) {
+            const cfg = getLayoutConfig();
+            const nodeW = (cfg.nodeWidthMin + cfg.nodeWidthMax) / 2;
+            // Centre horizontally; vertically aim at node top — height varies so avoid guessing
+            const cx = (target.position?.x ?? 0) + nodeW / 2;
+            const cy = (target.position?.y ?? 0);
+
+            const MIN_ZOOM    = 0.45; // below this → too zoomed out, nudge in
+            const MAX_ZOOM    = 1.2;  // above this → too zoomed in, nudge out
+            const TARGET_LOW  = 0.65; // target zoom when currently too far out
+            const TARGET_HIGH = 0.85; // target zoom when currently too far in
+
+            const current = reactFlowInstance.getZoom?.() ?? 0.75;
+            const zoom =
+              current < MIN_ZOOM ? TARGET_LOW  :
+              current > MAX_ZOOM ? TARGET_HIGH :
+              current;
+
+            reactFlowInstance.setCenter(cx, cy, { zoom, duration: 420 });
+          }
+        }
+        // Deselect all, select only the target
+        return prev.map((n) => ({ ...n, selected: n.id === nodeId }));
+      });
+    },
+    [edges, reactFlowInstance],
+  );
+
+  // Called by EditorNodePanel after a successful save — updates the node in state
   const onUpdateNode = useCallback((nodeId: string, patch: Partial<StepData>) => {
     setNodes((prev) =>
       prev.map((n) =>
@@ -313,7 +364,7 @@ export default function useTreeEditor() {
     );
   }, []);
 
-  // Called by NodeSidebar after a decision label is saved
+  // Called by EditorNodePanel after a decision label is saved
   const onUpdateEdge = useCallback((edgeId: string, patch: Record<string, unknown>) => {
     setEdges((prev) =>
       prev.map((e) =>
@@ -333,6 +384,18 @@ export default function useTreeEditor() {
   }, []);
 
   // Track which node the drag started from
+  // Wrap onNodesChange to detect when the user finishes dragging a node,
+  // marking the layout dirty so the Save Layout button becomes active.
+  const wrappedOnNodesChange = useCallback((changes: NodeChange[]) => {
+    onNodesChange(changes);
+    if (
+      moduleId > 0 &&
+      changes.some((c) => c.type === 'position' && (c as { dragging?: boolean }).dragging === false)
+    ) {
+      setLayoutDirty(true);
+    }
+  }, [onNodesChange, moduleId]);
+
   const onConnectStart = useCallback((_: React.MouseEvent, { nodeId }: { nodeId: string | null }) => {
     pendingConnSrc.current = nodeId;
     connectHandled.current = false;
@@ -373,37 +436,38 @@ export default function useTreeEditor() {
             body: JSON.stringify({ disconnect: { answer } }),
           });
         }
-        setEdges((prev) => {
-          const updated = prev.filter((e) => e.id !== edgeId);
-          const remaining = updated.filter((e) => e.source === sourceNodeId);
-          const hasYes = remaining.some((e) => e.data?.answer === "Yes");
-          const hasNo = remaining.some((e) => e.data?.answer === "No");
-          const hasQ = !!nodes.find((n) => n.id === sourceNodeId)?.data
-            ?.question;
-          const newStatus =
-            remaining.length === 0
-              ? hasQ
-                ? "terminal"
-                : "empty"
-              : hasYes && hasNo
-                ? "complete"
-                : "partial";
-          setNodes((ns) =>
-            ns.map((n) =>
-              n.id === sourceNodeId
-                ? {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      linkStatus: newStatus,
-                      isTerminal: newStatus === "terminal",
-                    },
-                  }
-                : n,
-            ),
-          );
-          return updated;
-        });
+        // Compute updated state using current edges closure (latest committed after await).
+        // setEdges and setNodes are sibling calls so React 18 batches them in one render.
+        const updatedEdges = edges.filter((e) => e.id !== edgeId);
+        const remaining = updatedEdges.filter((e) => e.source === sourceNodeId);
+        const hasYes = remaining.some((e) => e.data?.answer === "Yes");
+        const noRemaining = remaining.filter((e) => e.data?.answer === "No");
+        const hasNo = noRemaining.length > 0;
+        const hasQ = !!nodes.find((n) => n.id === sourceNodeId)?.data?.question;
+        const newStatus =
+          remaining.length === 0
+            ? hasQ ? "terminal" : "empty"
+            : hasYes && hasNo ? "complete" : "partial";
+        const newSourceHandles = [
+          ...(hasYes ? ['Yes'] : []),
+          ...noRemaining.map(e => (e.sourceHandle as string) || `No-${e.target}`),
+        ];
+        setEdges(updatedEdges);
+        setNodes((ns) =>
+          ns.map((n) =>
+            n.id === sourceNodeId
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    linkStatus: newStatus,
+                    isTerminal: newStatus === "terminal",
+                    sourceHandles: newSourceHandles,
+                  },
+                }
+              : n,
+          ),
+        );
         setSelectedNode((prev) =>
           prev
             ? {
@@ -418,7 +482,7 @@ export default function useTreeEditor() {
         console.error("Delete edge failed", e);
       }
     },
-    [IS_DEV, restUrl, nodes],
+    [IS_DEV, restUrl, edges, nodes],
   );
 
   // Creates a node AND immediately connects it to sourceNodeId with the chosen answer
@@ -479,37 +543,39 @@ export default function useTreeEditor() {
           linkStatus: "empty",
         },
       };
-      setNodes((prev) => [...prev, newNode as Node<StepData>]);
+      const noHandle = answer === 'No' ? `No-${newNodeId}` : null;
       const newEdge = {
-        id: `e-${srcPostId}-${newPostId}-${answer.toLowerCase()}`,
+        // Use full node IDs so the ID is always unique regardless of node ID format.
+        id: `e-${sourceNodeId}-${newNodeId}-${answer.toLowerCase()}`,
         source: sourceNodeId,
         target: newNodeId,
+        sourceHandle: noHandle ?? answer,
         type: "decision-edge",
         data: { label: answer, answer },
-        markerEnd: { type: "arrowclosed", color: "#999" },
-        style: { stroke: "#999", strokeWidth: 1.5 },
+        markerEnd: { type: "arrowclosed", color: '#999' },
+        style: { stroke: '#999', strokeWidth: 1.5 },
       };
-      setEdges((prev) => {
-        const updated = addEdge(newEdge as Edge<EdgeData>, prev);
-        const outgoing = updated.filter((e) => e.source === sourceNodeId);
-        const hasYes = outgoing.some((e) => e.data?.answer === "Yes");
-        const hasNo = outgoing.some((e) => e.data?.answer === "No");
-        setNodes((ns) =>
-          ns.map((nd) =>
-            nd.id === sourceNodeId
-              ? {
-                  ...nd,
-                  data: {
-                    ...nd.data,
-                    linkStatus: hasYes && hasNo ? "complete" : "partial",
-                    isTerminal: false,
-                  },
-                }
-              : nd,
-          ),
-        );
-        return updated;
-      });
+      // Compute new sourceHandles for the source node.
+      const currentOut = edges.filter(e => e.source === sourceNodeId);
+      const willHaveYes = answer === 'Yes' || currentOut.some(e => e.data?.answer === 'Yes');
+      const noHandlesAfter = [
+        ...currentOut.filter(e => e.data?.answer === 'No').map(e => (e.sourceHandle as string) || `No-${e.target}`),
+        ...(noHandle ? [noHandle] : []),
+      ];
+      const newSourceHandles = [...(willHaveYes ? ['Yes'] : []), ...noHandlesAfter];
+      const newLinkStatus: LinkStatus = willHaveYes && noHandlesAfter.length > 0 ? 'complete' : 'partial';
+      // Add the new node AND update the source node's handles in one setNodes call.
+      // setEdges is a sibling call — React 18 batches both into one render so handle
+      // and edge are always registered together by ReactFlow.
+      setNodes((prev) => [
+        ...prev.map(nd =>
+          nd.id === sourceNodeId
+            ? { ...nd, data: { ...nd.data, linkStatus: newLinkStatus, isTerminal: false, sourceHandles: newSourceHandles } }
+            : nd
+        ),
+        newNode as Node<StepData>,
+      ]);
+      setEdges((prev) => addEdge(newEdge as Edge<EdgeData>, prev));
       setPendingDragToNew(null);
       setDragNewTitle("");
     } catch (e) {
@@ -747,6 +813,10 @@ export default function useTreeEditor() {
                 ...n.data,
                 linkStatus: newStatus,
                 isTerminal: newStatus === "terminal",
+                sourceHandles: [
+                  ...(hasYes ? ['Yes'] : []),
+                  ...remaining.filter(e => e.data?.answer === 'No').map(e => (e.sourceHandle as string) || `No-${e.target}`),
+                ],
               },
             };
           });
@@ -841,37 +911,37 @@ export default function useTreeEditor() {
         });
         if (!res.ok) throw new Error("Server error");
       }
+      const sourceHandle = answer === 'No' ? `No-${pendingConn.target}` : 'Yes';
       const newEdgeObj = {
-        id: `e-${sourcePostId}-${targetPostId}-${answer.toLowerCase()}`,
+        // Use full node IDs (not parseInt-extracted postIds) so the ID is always unique,
+        // even when node IDs are non-numeric strings (e.g. dev data "fa-1").
+        id: `e-${pendingConn.source}-${pendingConn.target}-${answer.toLowerCase()}`,
         source: pendingConn.source,
         target: pendingConn.target,
+        sourceHandle,
         type: "decision-edge",
         data: { label: answer, answer },
-        markerEnd: { type: "arrowclosed", color: "#999" },
-        style: { stroke: "#999", strokeWidth: 1.5 },
+        markerEnd: { type: "arrowclosed", color: '#999' },
+        style: { stroke: '#999', strokeWidth: 1.5 },
       };
-      setEdges((prev) => {
-        const updated = addEdge(newEdgeObj as Edge<EdgeData>, prev);
-        // Recompute source node colour immediately
-        const outgoing = updated.filter((e) => e.source === pendingConn.source);
-        const hasYes = outgoing.some((e) => e.data?.answer === "Yes");
-        const hasNo = outgoing.some((e) => e.data?.answer === "No");
-        setNodes((ns) =>
-          ns.map((nd) =>
-            nd.id === pendingConn.source
-              ? {
-                  ...nd,
-                  data: {
-                    ...nd.data,
-                    linkStatus: hasYes && hasNo ? "complete" : "partial",
-                    isTerminal: false,
-                  },
-                }
-              : nd,
-          ),
-        );
-        return updated;
-      });
+      // Compute sourceHandles ahead of time using the current edges closure.
+      // setNodes and setEdges are sibling calls — React 18 batches them into one render
+      // so the handle exists in the same frame as the edge. This is critical: if the handle
+      // is added in a later render, ReactFlow loses the edge->handle position tracking.
+      const currentOut = edges.filter(e => e.source === pendingConn.source);
+      const willHaveYes = answer === 'Yes' || currentOut.some(e => e.data?.answer === 'Yes');
+      const noHandlesAfter = [
+        ...currentOut.filter(e => e.data?.answer === 'No').map(e => (e.sourceHandle as string) || `No-${e.target}`),
+        ...(answer === 'No' ? [sourceHandle] : []),
+      ];
+      const newSourceHandles = [...(willHaveYes ? ['Yes'] : []), ...noHandlesAfter];
+      const newLinkStatus: LinkStatus = willHaveYes && noHandlesAfter.length > 0 ? 'complete' : 'partial';
+      setNodes(ns => ns.map(nd =>
+        nd.id === pendingConn.source
+          ? { ...nd, data: { ...nd.data, linkStatus: newLinkStatus, isTerminal: false, sourceHandles: newSourceHandles } }
+          : nd
+      ));
+      setEdges(prev => addEdge(newEdgeObj as Edge<EdgeData>, prev));
       setPendingConn(null);
     } catch (e) {
       console.error("Connect failed", e);
@@ -879,6 +949,46 @@ export default function useTreeEditor() {
       setConnSaving(false);
     }
   };
+
+  // ── Layout lock: save current node positions to WP postmeta ──────────────
+  const saveLayout = useCallback(async () => {
+    if (moduleId <= 0) return;
+    const positions: Record<string, { x: number; y: number }> = {};
+    nodes.forEach((n) => { positions[n.id] = n.position; });
+    if (!IS_DEV) {
+      try {
+        const res = await fetch(`${restUrl}layout/${moduleId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': window.dt?.nonce || '',
+          },
+          body: JSON.stringify({ positions }),
+        });
+        if (!res.ok) throw new Error('Save failed');
+      } catch {
+        return; // Don't mark saved if request failed
+      }
+    }
+    setLayoutLocked(true);
+    setLayoutDirty(false);
+  }, [moduleId, nodes, IS_DEV, restUrl]);
+
+  // ── Layout lock: clear saved positions and re-run dagre ───────────────────
+  const resetLayout = useCallback(async () => {
+    if (moduleId <= 0) return;
+    if (!IS_DEV) {
+      fetch(`${restUrl}layout/${moduleId}`, {
+        method: 'DELETE',
+        headers: { 'X-WP-Nonce': window.dt?.nonce || '' },
+      }).catch(() => {}); // best effort, don't block
+    }
+    const laid = applyDagreLayout(nodes, edges);
+    const statused = recomputeNodeStatuses(laid, edges);
+    setNodes(computeReachability(statused, edges, rootNodeId));
+    setLayoutLocked(false);
+    setLayoutDirty(false);
+  }, [moduleId, nodes, edges, IS_DEV, restUrl, rootNodeId]);
 
   return {
     // Environment
@@ -901,10 +1011,15 @@ export default function useTreeEditor() {
     // Layout settings
     layoutSettings,
     handleLayoutSettingChange,
+    // Layout lock
+    layoutLocked,
+    layoutDirty,
+    saveLayout,
+    resetLayout,
     // Graph
     nodes,
     edges,
-    onNodesChange,
+    onNodesChange: wrappedOnNodesChange,
     onEdgesChange,
     selectedNode,
     setSelectedNode,
@@ -931,6 +1046,7 @@ export default function useTreeEditor() {
     dragNewSaving,
     // Callbacks
     onNodeClick,
+    selectNodeById,
     onUpdateNode,
     onUpdateEdge,
     onConnectStart,
@@ -945,5 +1061,23 @@ export default function useTreeEditor() {
     unmarkTerminal,
     deleteNode,
     createNode,
+    fitForPrint,
   };
+
+  /**
+   * Fit the React Flow viewport to the first PRINT_MAX_LEVELS levels of the
+   * tree, suitable for calling from a beforeprint handler.
+   * Returns silently if the instance or root are unavailable.
+   */
+  function fitForPrint() {
+    if (!reactFlowInstance || !rootNodeId) return;
+    const subset = getNodesInFirstNLevels(nodes, edges, rootNodeId, PRINT_MAX_LEVELS);
+    reactFlowInstance.fitView({
+      nodes: subset.length > 0 ? subset : undefined,
+      padding: 0.08,
+      minZoom: 0.2,
+      maxZoom: 1.0,
+      duration: 0, // no animation — we need the position set before the print dialog opens
+    });
+  }
 }
