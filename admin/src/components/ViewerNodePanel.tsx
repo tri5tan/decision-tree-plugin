@@ -1,32 +1,35 @@
 import { STATUS_COLORS, STATUS_LABELS, EDGE_COLORS, CHROME, getStatusKey } from '../config/theme';
+import { decodeEntities } from '../utils/htmlUtils';
+import DecisionPathCards from './DecisionPathCards';
 import type { Node, Edge } from 'reactflow';
 import type { StepData, EdgeData } from '../types';
 
-interface ViewerSidebarProps {
+interface ViewerNodePanelProps {
   node: Node<StepData>;
   outgoingEdges?: Edge<EdgeData>[];
   onClose: () => void;
+  onSelectNode?: (nodeId: string) => void;
 }
 
-export default function ViewerSidebar({ node, outgoingEdges = [], onClose }: ViewerSidebarProps) {
+export default function ViewerNodePanel({ node, outgoingEdges = [], onClose, onSelectNode }: ViewerNodePanelProps) {
   const d         = node.data;
   const statusKey = getStatusKey(d);
   const color     = STATUS_COLORS[statusKey] || '#888';
   const label     = STATUS_LABELS[statusKey] || 'Unknown';
 
   const yesEdge = outgoingEdges.find(e => e.data?.answer === 'Yes');
-  const noEdge  = outgoingEdges.find(e => e.data?.answer === 'No');
+  const noEdges  = outgoingEdges.filter(e => e.data?.answer === 'No');
 
   return (
     <div style={{
-      width: 300, padding: 16, borderLeft: `1px solid ${CHROME.panelBorder}`,
+      width: '35%', maxWidth: 415, padding: 16, borderLeft: `1px solid ${CHROME.panelBorder}`,
       background: CHROME.panelBg, overflowY: 'auto', fontSize: 13, flexShrink: 0,
     }}>
       {/* Header with title */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
         <div style={{ flex: 1, paddingRight: 8 }}>
           <h3 style={{ margin: 0, fontSize: 14, lineHeight: 1.4 }}>
-            {d.label}
+            {decodeEntities(d.label)}
           </h3>
         </div>
         <button
@@ -57,34 +60,18 @@ export default function ViewerSidebar({ node, outgoingEdges = [], onClose }: Vie
         }
       </Section> */}
 
-      {/* Yes / No decision paths — read-only */}
-      {!d.isTerminal && (
-        <Section title="Decision paths">
-          {yesEdge && (
-            <PathRow
-              answer="Yes" color={EDGE_COLORS.yes.border} bg={EDGE_COLORS.yes.bg}
-              label={yesEdge.data?.label}
-            />
-          )}
-          {noEdge && (
-            <PathRow
-              answer="No" color={EDGE_COLORS.no.border} bg={EDGE_COLORS.no.bg}
-              label={noEdge.data?.label}
-            />
-          )}
-        </Section>
-      )}
+     
 
       {/* Best practice callout — read-only */}
       {d.callout && (
-        <Section title="Best practice callout">
-          <p style={{ margin: 0, lineHeight: 1.5 }}>{d.callout}</p>
+        <Section>
+          <p style={{ margin: 0, lineHeight: 1.5 }}>{decodeEntities(d.callout)}</p>
         </Section>
       )}
 
       {/* Body content — read-only */}
       {d.content && (
-        <Section title="Body content">
+        <Section>
           <div style={{ lineHeight: 1.55, fontSize: 12, color: CHROME.textPrimary }} dangerouslySetInnerHTML={{ __html: d.content }} />
         </Section>
       )}
@@ -96,7 +83,7 @@ export default function ViewerSidebar({ node, outgoingEdges = [], onClose }: Vie
             {d.legislation.map((l: { act: string; section?: string; url: string }, i: number) => (
               <li key={i} style={{ marginBottom: 5, lineHeight: 1.4 }}>
                 <a href={l.url} target="_blank" rel="noopener noreferrer"
-                   style={{ color: STATUS_COLORS.terminal, fontSize: 12 }}>
+                   style={{ color: STATUS_COLORS.terminal.base, fontSize: 12 }}>
                   {l.act}{l.section ? ` — ${l.section}` : ''}
                 </a>
               </li>
@@ -104,19 +91,29 @@ export default function ViewerSidebar({ node, outgoingEdges = [], onClose }: Vie
           </ul>
         </Section>
       )}
+
+       {/* Decision paths — navigable cards */}
+      {!d.isTerminal && (
+        <Section>
+          <DecisionPathCards yesEdge={yesEdge} noEdges={noEdges} onSelectNode={onSelectNode} />
+        </Section>
+      )}
+      
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{
-        fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em',
-        color: CHROME.sectionLabel, marginBottom: 5, fontWeight: 600,
-      }}>
-        {title}
-      </div>
+      {title && (
+        <div style={{
+          fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em',
+          color: CHROME.sectionLabel, marginBottom: 5, fontWeight: 600,
+        }}>
+          {title}
+        </div>
+      )}
       {children}
     </div>
   );
@@ -135,7 +132,7 @@ function PathRow({ answer, color, bg, label, warn }: { answer: string; color: st
       }}>
         {answer}
       </span>
-      <span style={{ color: warn ? STATUS_COLORS.orphan : CHROME.textPrimary, fontStyle: warn ? 'italic' : 'normal' }}>
+      <span style={{ color: warn ? STATUS_COLORS.orphan.base : CHROME.textPrimary, fontStyle: warn ? 'italic' : 'normal' }}>
         {label || '—'}
       </span>
     </div>

@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useNodesState, useEdgesState } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
-import { DEV_TREE } from '../dev/devData';
+import { DEV_TREE, DEV_TREE_2, DEV_TREE_3, DEV_TREE_4, DEV_TREE_5 } from '../dev/devData';
 import {
   applyDagreLayout,
   buildFlowNodes,
   buildFlowEdges,
   recomputeNodeStatuses,
   computeReachability,
+  applySavedPositions,
 } from '../utils/graphUtils';
 import type { StepData, EdgeData } from '../types';
 
 interface Options {
   moduleId: number | string;
   IS_DEV: boolean;
+  devTreeIndex?: number;
   restUrl: string;
 }
 
@@ -23,8 +25,9 @@ interface Options {
  * Orphan nodes (unreachable from root) are filtered out — they're an
  * authoring concern and irrelevant to end users.
  */
-export default function useTreeViewerLoader({ moduleId, IS_DEV, restUrl }: Options): {
+export default function useTreeViewerLoader({ moduleId, IS_DEV, devTreeIndex, restUrl }: Options): {
   nodes: Node<StepData>[];
+  setNodes: ReturnType<typeof useNodesState<StepData>>[1];
   edges: Edge<EdgeData>[];
   loading: boolean;
   error: string | null;
@@ -42,8 +45,14 @@ export default function useTreeViewerLoader({ moduleId, IS_DEV, restUrl }: Optio
     setLoading(true);
     setError(null);
 
+    // Select dev tree based on index
+    const devTrees = [DEV_TREE, DEV_TREE_2, DEV_TREE_3, DEV_TREE_4, DEV_TREE_5];
+    const selectedDevTree = IS_DEV && devTreeIndex && devTrees[devTreeIndex - 1] 
+      ? devTrees[devTreeIndex - 1] 
+      : DEV_TREE;
+
     const loadData = IS_DEV
-      ? Promise.resolve(DEV_TREE)
+      ? Promise.resolve(selectedDevTree)
       : fetch(restUrl + 'tree/' + moduleId).then(r => r.json());
 
     loadData
@@ -52,7 +61,10 @@ export default function useTreeViewerLoader({ moduleId, IS_DEV, restUrl }: Optio
 
         const flowNodes = buildFlowNodes(data.nodes, 'viewer-node');
         const flowEdges = buildFlowEdges(data.edges);
-        const laid      = applyDagreLayout(flowNodes, flowEdges);
+        const hasSaved  = data.savedPositions && Object.keys(data.savedPositions).length > 0;
+        const laid      = hasSaved
+          ? applySavedPositions(flowNodes, data.savedPositions)
+          : applyDagreLayout(flowNodes, flowEdges);
         const statused  = recomputeNodeStatuses(laid, flowEdges);
 
         const incomingIds = new Set(flowEdges.map(e => e.target));
@@ -72,7 +84,7 @@ export default function useTreeViewerLoader({ moduleId, IS_DEV, restUrl }: Optio
       })
       .catch(e => setError(e.message || 'Could not load tree.'))
       .finally(() => setLoading(false));
-  }, [moduleId, IS_DEV, restUrl]);
+  }, [moduleId, IS_DEV, devTreeIndex, restUrl]);
 
-  return { nodes, edges, loading, error, moduleTitle };
+  return { nodes, setNodes, edges, loading, error, moduleTitle };
 }
