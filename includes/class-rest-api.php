@@ -114,6 +114,30 @@ class DT_Rest_API {
                 ],
             ],
         ] );
+
+        register_rest_route( 'dt/v1', '/layout/(?P<module_id>\d+)', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'save_layout' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+            'args'                => [
+                'module_id' => [
+                    'validate_callback' => fn( $v ) => is_numeric( $v ) && $v > 0,
+                    'sanitize_callback' => 'absint',
+                ],
+            ],
+        ] );
+
+        register_rest_route( 'dt/v1', '/layout/(?P<module_id>\d+)', [
+            'methods'             => 'DELETE',
+            'callback'            => [ $this, 'delete_layout' ],
+            'permission_callback' => [ $this, 'check_permission' ],
+            'args'                => [
+                'module_id' => [
+                    'validate_callback' => fn( $v ) => is_numeric( $v ) && $v > 0,
+                    'sanitize_callback' => 'absint',
+                ],
+            ],
+        ] );
     }
 
     /**
@@ -363,10 +387,14 @@ class DT_Rest_API {
         $root_candidates = array_values( array_diff( $node_ids, $all_target_ids ) );
         $root_node_id = $root_candidates[0] ?? ( $node_ids[0] ?? null );
 
+        $saved_positions_raw = get_post_meta( $resource_id, '_dt_node_positions', true );
+        $saved_positions     = $saved_positions_raw ? json_decode( $saved_positions_raw, true ) : null;
+
         return rest_ensure_response( [
-            'rootNodeId' => $root_node_id,
-            'nodes'      => array_values( $nodes ),
-            'edges'      => array_values( $edges ),
+            'rootNodeId'     => $root_node_id,
+            'nodes'          => array_values( $nodes ),
+            'edges'          => array_values( $edges ),
+            'savedPositions' => $saved_positions,
         ] );
     }
 
@@ -485,10 +513,14 @@ class DT_Rest_API {
         }
 
         return rest_ensure_response( [
-            'moduleTitle' => get_the_title( $module_id ),
-            'rootNodeId'  => $root_node_id,
-            'nodes'       => array_values( $nodes ),
-            'edges'       => array_values( $edges ),
+            'moduleTitle'    => get_the_title( $module_id ),
+            'rootNodeId'     => $root_node_id,
+            'nodes'          => array_values( $nodes ),
+            'edges'          => array_values( $edges ),
+            'savedPositions' => ( function() use ( $module_id ) {
+                $raw = get_post_meta( $module_id, '_dt_node_positions', true );
+                return $raw ? json_decode( $raw, true ) : null;
+            } )(),
         ] );
     }
 
@@ -510,6 +542,44 @@ class DT_Rest_API {
         }
 
         return rest_ensure_response( [ 'updated' => true, 'module_id' => $module_id ] );
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /wp-json/dt/v1/layout/{module_id}  — save node positions
+    // -------------------------------------------------------------------------
+
+    public function save_layout( WP_REST_Request $request ) {
+        $module_id = $request->get_param( 'module_id' );
+        $body      = $request->get_json_params();
+        $positions = $body['positions'] ?? null;
+
+        if ( ! is_array( $positions ) ) {
+            return new WP_Error( 'invalid_data', 'positions must be an object.', [ 'status' => 400 ] );
+        }
+
+        $sanitized = [];
+        foreach ( $positions as $node_id => $pos ) {
+            $node_id = sanitize_text_field( (string) $node_id );
+            if ( isset( $pos['x'], $pos['y'] ) ) {
+                $sanitized[ $node_id ] = [
+                    'x' => (float) $pos['x'],
+                    'y' => (float) $pos['y'],
+                ];
+            }
+        }
+
+        update_post_meta( $module_id, '_dt_node_positions', wp_json_encode( $sanitized ) );
+        return rest_ensure_response( [ 'saved' => true ] );
+    }
+
+    // -------------------------------------------------------------------------
+    // DELETE /wp-json/dt/v1/layout/{module_id}  — clear saved positions
+    // -------------------------------------------------------------------------
+
+    public function delete_layout( WP_REST_Request $request ) {
+        $module_id = $request->get_param( 'module_id' );
+        delete_post_meta( $module_id, '_dt_node_positions' );
+        return rest_ensure_response( [ 'deleted' => true ] );
     }
 
     // -------------------------------------------------------------------------

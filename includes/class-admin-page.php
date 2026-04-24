@@ -25,7 +25,7 @@ class DT_Admin_Page {
             add_submenu_page(
                 $parent,
                 'Decision Tree',
-                'Decision Tree Editor',
+                'Flow Diagram Editor',
                 'edit_posts',
                 'decision-tree-editor',
                 [ $this, 'render_admin_page' ]
