@@ -11,8 +11,8 @@ const DEFAULT_LAYOUT = {
   // These are baseline values; getRankSep/getNodeSep scale them with viewport size.
   rankSepMin: 120,
   rankSepMax: 220,
-  nodeSepMin: 110,
-  nodeSepMax: 180,
+  nodeSepMin: 150,
+  nodeSepMax: 250,
 
   // ── Canvas zoom bounds (enforced by React Flow on the interactive canvas) ──
   canvasMinZoom: 0.15, // how far out the user can manually zoom
@@ -177,3 +177,11 @@ export function getFitLevels() {
 
 /** Max characters to show in the body snippet on a node card (editor + viewer). */
 export const TRUNCATE_BODY = 200;
+
+/**
+ * Maximum BFS depth shown in the print/export view.
+ * Back-edges that skip to higher ancestors are handled by the dagre fix and
+ * won't cause misranking, but keeping print depth bounded keeps the diagram
+ * legible on A4.
+ */
+export const PRINT_MAX_LEVELS = 5;

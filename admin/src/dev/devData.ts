@@ -74,12 +74,16 @@ export const DEV_MODULE_ID = 1;
 export const DEV_TOPICS: Topic[] = [
   { id: 10, title: 'Dog Control' },
   { id: 20, title: 'Food Safety' },
+  { id: 30, title: 'Environmental Health' },
+  { id: 40, title: 'Privacy Act' },
 ];
 
 export const DEV_MODULES: Module[] = [
   { id: 1, title: 'Dog Control — Request for Service', topicId: 10 },
   { id: 3, title: 'Dog Control — Barking Dog Complaint', topicId: 10 },
   { id: 2, title: 'Food Act Compliance', topicId: 20 },
+  { id: 4, title: 'Noise Control — Enforcement', topicId: 30 },
+  { id: 5, title: 'Privacy Act — Receipt of Personal Information', topicId: 40 },
 ];
 
 /** Barking Dog Complaint tree for module 3 in dev mode */
@@ -231,4 +235,326 @@ export const DEV_TREE_3 = {
   ],
 };
 
+/**
+ * Noise Control — Enforcement (module 4)
+ *
+ * Specifically designed to stress-test convergent-node layout bugs:
+ *
+ * CONVERGENT #1 — Diamond (two parents, same BFS depth → shared child):
+ *   nc-4 (No)  ──┐
+ *   nc-5 (Yes) ──┴──► nc-7   [both at depth 2, nc-7 should sit at depth 3]
+ *
+ * CONVERGENT #2 — Extreme triple (three parents at *different* depths → same node):
+ *   nc-4 (No)  ──┐
+ *   nc-5 (Yes) ──┼──► nc-7   [nc-4 & nc-5 at depth 2; nc-6 (No) at depth 3]
+ *   nc-6 (No)  ──┘            Without the fix, dagre pulls nc-7 to rank 4+.
+ *
+ * CONVERGENT #3 — Shared terminals from different depths:
+ *   nc-7 (Yes) ──┐              nc-7 is at depth 3
+ *   nc-9 (Yes) ──┴──► nc-10    nc-9 is at depth 4
+ *   nc-7 (No)  ──┐              nc-10 / nc-11 should sit at depth 4, not 5+.
+ *   nc-9 (No)  ──┴──► nc-11
+ */
+export const DEV_TREE_4 = {
+  moduleTitle: 'Noise Control — Enforcement',
+  rootNodeId: 'nc-1',
+  nodes: [
+    {
+      id: 'nc-1',
+      data: {
+        postId: 50, label: '1. Reportable Noise?',
+        question: 'Has the complaint been assessed as reportable noise under the Resource Management Act?',
+        content: '<p>Check the initial complaint log. Confirm the noise type and source before escalating.</p>',
+        rawContent: '', callout: null, adminNotes: '',
+        legislation: [{ act: 'Resource Management Act 1991', section: 'S.16 — Duty to avoid unreasonable noise', url: 'https://legislation.govt.nz/act/public/1991/0069/latest/whole.html' }],
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'nc-2',
+      data: {
+        postId: 51, label: '2. Prohibited Hours?',
+        question: 'Is the noise occurring during prohibited hours as defined in the district plan?',
+        content: '<p>Prohibited hours are typically 10pm-7am weekdays and 10pm-8am weekends. Check the local district plan for specific rules.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'nc-3',
+      data: {
+        postId: 52, label: '3. Not Reportable — Advise & Close',
+        question: null,
+        content: '<p>Noise does not meet the threshold for enforcement action. Advise the caller of options (civil mediation, body corporate process if applicable) and close the complaint.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'nc-4',
+      data: {
+        postId: 53, label: '4. Commercial Source?',
+        question: 'Is the noise source a commercial premises (retail, hospitality, industrial)?',
+        content: '<p>Commercial premises may be subject to conditions under their resource consent. Check consent conditions before proceeding.</p>',
+        rawContent: '', callout: 'Check resource consent conditions — commercial operators may have extended hours.', legislation: [], adminNotes: '',
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'nc-5',
+      data: {
+        postId: 54, label: '5. Repeat Complaint?',
+        question: 'Has a complaint about the same address been received in the last 7 days?',
+        content: '<p>Check the enforcement system for prior complaints at this address in the past week. Repeat complaints escalate the response pathway.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'nc-6',
+      data: {
+        postId: 55, label: '6. Above Threshold?',
+        question: 'Has a noise measurement confirmed the level exceeds the district plan limit?',
+        content: '<p>Attend site and measure noise using a calibrated sound level meter. Compare against the relevant district plan noise standard for the zone.</p>',
+        rawContent: '', callout: 'Measurements must be taken at the boundary of the affected property. Log readings with time and location.',
+        legislation: [{ act: 'Resource Management Act 1991', section: 'S.327 — Power to take samples', url: 'https://legislation.govt.nz/act/public/1991/0069/latest/whole.html' }],
+        adminNotes: '', linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'nc-7',
+      // CONVERGENT TARGET: receives edges from nc-4 (depth 2), nc-5 (depth 2), nc-6 (depth 3)
+      data: {
+        postId: 56, label: '7. Issue Abatement Notice',
+        question: 'Has a formal abatement notice been served on the noise-maker?',
+        content: '<p>Issue a written abatement notice specifying the breach, required action, and compliance deadline. Serve personally or by registered post.</p>',
+        rawContent: '', callout: 'Notice must specify the noise standard breached and the exact remediation required.',
+        legislation: [{ act: 'Resource Management Act 1991', section: 'S.322 — Abatement notice', url: 'https://legislation.govt.nz/act/public/1991/0069/latest/whole.html' }],
+        adminNotes: '', linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'nc-8',
+      data: {
+        postId: 57, label: '8. Log & Monitor',
+        question: null,
+        content: '<p>Noise is within hours and not a repeat complaint. Log for monitoring. Advise the complainant to report any further incidents.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'nc-9',
+      data: {
+        postId: 58, label: '9. Has Notice Been Complied With?',
+        question: 'Has the commercial operator complied with the improvement notice within the specified timeframe?',
+        content: '<p>Follow up after the deadline. If the operator has installed acoustic treatment or restricted hours, confirm compliance and close.</p>',
+        rawContent: '', callout: null,
+        legislation: [{ act: 'Resource Management Act 1991', section: 'S.322 — Abatement notice', url: 'https://legislation.govt.nz/act/public/1991/0069/latest/whole.html' }],
+        adminNotes: '', linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'nc-10',
+      // CONVERGENT TARGET: receives edges from nc-7 (depth 3) and nc-9 (depth 4)
+      data: {
+        postId: 59, label: '10. Resolved — Close File',
+        question: null,
+        content: '<p>Noise nuisance has abated. Compliance confirmed. Close file and record outcome. Advise complainant of resolution.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'nc-11',
+      // CONVERGENT TARGET: receives edges from nc-7 (depth 3) and nc-9 (depth 4)
+      data: {
+        postId: 60, label: '11. Escalate — Infringement',
+        question: null,
+        content: '<p>Notice not complied with. Issue an infringement notice. Consider an enforcement order from the Environment Court for persistent offenders.</p>',
+        rawContent: '', callout: 'Infringement fee applicable. Escalate to prosecution if owner continues to ignore notices.',
+        legislation: [{ act: 'Resource Management Act 1991', section: 'S.338 — Offences', url: 'https://legislation.govt.nz/act/public/1991/0069/latest/whole.html' }],
+        adminNotes: '', linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+  ],
+  edges: [
+    { id: 'e-nc1-nc3', source: 'nc-1', target: 'nc-3', label: 'No — not reportable, advise & close', answer: 'No' },
+    { id: 'e-nc1-nc2', source: 'nc-1', target: 'nc-2', label: 'Yes — assess further', answer: 'Yes' },
+    { id: 'e-nc2-nc4', source: 'nc-2', target: 'nc-4', label: 'Yes — prohibited hours', answer: 'Yes' },
+    { id: 'e-nc2-nc5', source: 'nc-2', target: 'nc-5', label: 'No — within permitted hours', answer: 'No' },
 
+    // Commercial path → measure noise
+    { id: 'e-nc4-nc6', source: 'nc-4', target: 'nc-6', label: 'Yes — commercial, measure', answer: 'Yes' },
+    // CONVERGENT #1 — Diamond: nc-4(No) AND nc-5(Yes) both converge on nc-7 (both parents at depth 2)
+    { id: 'e-nc4-nc7', source: 'nc-4', target: 'nc-7', label: 'No — residential, issue notice', answer: 'No' },
+    { id: 'e-nc5-nc7', source: 'nc-5', target: 'nc-7', label: 'Yes — repeat complaint, issue notice', answer: 'Yes' },
+    { id: 'e-nc5-nc8', source: 'nc-5', target: 'nc-8', label: 'No — first complaint, log & monitor', answer: 'No' },
+
+    // CONVERGENT #2 — Extreme triple: nc-6(No) ALSO feeds nc-7 (parent at depth 3, deeper than nc-4/nc-5)
+    { id: 'e-nc6-nc9', source: 'nc-6', target: 'nc-9', label: 'Yes — over threshold, improvement notice', answer: 'Yes' },
+    { id: 'e-nc6-nc7', source: 'nc-6', target: 'nc-7', label: 'No — borderline, standard notice', answer: 'No' },
+
+    // CONVERGENT #3 — Shared terminals: nc-7 (depth 3) and nc-9 (depth 4) both lead to nc-10 and nc-11
+    { id: 'e-nc7-nc10', source: 'nc-7', target: 'nc-10', label: 'Yes — complied, close file', answer: 'Yes' },
+    { id: 'e-nc7-nc11', source: 'nc-7', target: 'nc-11', label: 'No — non-compliant, escalate', answer: 'No' },
+    { id: 'e-nc9-nc10', source: 'nc-9', target: 'nc-10', label: 'Yes — complied, close file', answer: 'Yes' },
+    { id: 'e-nc9-nc11', source: 'nc-9', target: 'nc-11', label: 'No — non-compliant, escalate', answer: 'No' },
+  ],
+};
+
+/**
+ * Privacy Act — Receipt of Personal Information (module 5)
+ *
+ * Simple linear tree with one node (pact-9) that receives
+ * THREE 'Yes' inputs from different depths:
+ *   pact-6 (depth 3) ──Yes──┐
+ *   pact-7 (depth 3) ──Yes──┼──► pact-9
+ *   pact-10 (depth 4) ─Yes──┘
+ * Longest-path depth of pact-9 = 5 (below pact-10 at depth 4).
+ */
+export const DEV_TREE_5 = {
+  moduleTitle: 'Privacy Act — Receipt of Personal Information',
+  rootNodeId: 'pact-1',
+  nodes: [
+    {
+      id: 'pact-1',
+      data: {
+        postId: 70, label: '1. Personal Info Collected?',
+        question: 'Has personal information about an identifiable individual been received or collected by the council?',
+        content: '<p>Personal information is any information about an identifiable individual. This includes names, contact details, health information, financial details, and opinions about a person.</p>',
+        rawContent: '', callout: 'If in doubt, treat the information as personal information and apply the Privacy Act.', adminNotes: '',
+        legislation: [{ act: 'Privacy Act 2020', section: 'S.7 — Meaning of personal information', url: 'https://legislation.govt.nz/act/public/2020/0031/latest/whole.html' }],
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'pact-2',
+      data: {
+        postId: 71, label: '2. No Action Required',
+        question: null,
+        content: '<p>No personal information has been collected. No Privacy Act obligations apply at this time. No further action required.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'pact-3',
+      data: {
+        postId: 72, label: '2. Lawful Collection?',
+        question: 'Is the collection of this personal information authorised by or necessary for a lawful function of the council?',
+        content: '<p>Under IPP 1, personal information must only be collected for a lawful purpose connected to the council\'s functions. Check that the collection is necessary — not merely convenient.</p>',
+        rawContent: '', callout: null, adminNotes: '',
+        legislation: [{ act: 'Privacy Act 2020', section: 'IPP 1 — Purpose of collection', url: 'https://legislation.govt.nz/act/public/2020/0031/latest/whole.html' }],
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'pact-4',
+      data: {
+        postId: 73, label: '3. Do Not Collect — No Lawful Basis',
+        question: null,
+        content: '<p>Collection is not authorised by a lawful council function. Do not collect or retain this information. Return or destroy it and advise the individual accordingly.</p>',
+        rawContent: '', callout: 'Seek legal advice before destroying records.', legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'pact-5',
+      data: {
+        postId: 74, label: '3. Individual Notified?',
+        question: 'Was the individual notified of the purpose of collection at or before the time information was collected?',
+        content: '<p>Under IPP 3, individuals must be told why their information is being collected, that they have a right to access it, and who will receive it. Notification should be at or before the time of collection.</p>',
+        rawContent: '', callout: null, adminNotes: '',
+        legislation: [{ act: 'Privacy Act 2020', section: 'IPP 3 — Collection from subject', url: 'https://legislation.govt.nz/act/public/2020/0031/latest/whole.html' }],
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'pact-6',
+      data: {
+        postId: 75, label: '4. Lawful Exemption from Notification?',
+        question: 'Does a lawful exemption from the notification requirement apply (e.g. prejudice to purpose, safety, public interest)?',
+        content: '<p>IPP 3 exemptions include: notification would prejudice the purpose of collection; the information is publicly available; collection is for a law enforcement purpose. The exemption must be clearly justified and documented.</p>',
+        rawContent: '', callout: 'Exemptions are narrow — document the basis carefully.', adminNotes: '',
+        legislation: [{ act: 'Privacy Act 2020', section: 'IPP 3(4) — Exceptions to notification', url: 'https://legislation.govt.nz/act/public/2020/0031/latest/whole.html' }],
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'pact-7',
+      data: {
+        postId: 76, label: '4. Consent on File?',
+        question: 'Is there a current, informed consent record in the system for this individual for this purpose?',
+        content: '<p>Consent must be freely given, specific to the purpose, and informed. Check the records management system for a signed consent form or electronic consent record. Verbal consent is not sufficient on its own.</p>',
+        rawContent: '', callout: null, adminNotes: '',
+        legislation: [{ act: 'Privacy Act 2020', section: 'IPP 2 — Source of personal information', url: 'https://legislation.govt.nz/act/public/2020/0031/latest/whole.html' }],
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'pact-8',
+      data: {
+        postId: 77, label: '5. Halt — Notify Before Use',
+        question: null,
+        content: '<p>No exemption applies and notification was not given. Do not use or share the information until the individual has been notified of the collection purpose. Issue a retrospective notification letter and obtain acknowledgement before proceeding.</p>',
+        rawContent: '', callout: 'Do not use or disclose this information until notification is complete.', legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'pact-10',
+      data: {
+        postId: 78, label: '5. Record Consent Now',
+        question: 'Has consent now been obtained from the individual and recorded in the system?',
+        content: '<p>Obtain consent using the standard Privacy Act consent form. Record the consent in the document management system against the individual\'s profile. Consent must reference the specific purpose and be signed or electronically acknowledged.</p>',
+        rawContent: '', callout: 'Consent must be recorded before the information is used or shared.', adminNotes: '',
+        legislation: [{ act: 'Privacy Act 2020', section: 'IPP 3 — Collection from subject', url: 'https://legislation.govt.nz/act/public/2020/0031/latest/whole.html' }],
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
+      id: 'pact-11',
+      data: {
+        postId: 79, label: '6. Cannot Proceed — Seek Advice',
+        question: null,
+        content: '<p>Consent cannot be obtained and no exemption applies. Do not use or retain the information. Refer to the council Privacy Officer for advice on destruction or return of the information.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'pact-9',
+      // CONVERGENT TARGET — receives Yes from pact-6 (depth 3), pact-7 (depth 3), pact-10 (depth 4)
+      // Longest-path depth = 5 (max(3,3,4) + 1)
+      data: {
+        postId: 80, label: '6. Log Receipt & Store Securely',
+        question: null,
+        content: '<p>All Privacy Act checks are satisfied. Log the receipt of personal information in the records system. Assign a retention period in accordance with the council\'s retention schedule. Route to secure storage with access controls applied. Advise the relevant officer that the information is available.</p>',
+        rawContent: '', callout: 'Assign a retention period at the time of storage — do not defer this step.',
+        legislation: [
+          { act: 'Privacy Act 2020', section: 'IPP 5 — Storage and security', url: 'https://legislation.govt.nz/act/public/2020/0031/latest/whole.html' },
+          { act: 'Privacy Act 2020', section: 'IPP 9 — Retention of personal information', url: 'https://legislation.govt.nz/act/public/2020/0031/latest/whole.html' },
+        ],
+        adminNotes: '', linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+  ],
+  edges: [
+    { id: 'e-p1-p2',   source: 'pact-1',  target: 'pact-2',  label: 'No — not personal info', answer: 'No' },
+    { id: 'e-p1-p3',   source: 'pact-1',  target: 'pact-3',  label: 'Yes — check lawful basis', answer: 'Yes' },
+    { id: 'e-p3-p4',   source: 'pact-3',  target: 'pact-4',  label: 'No — no lawful basis', answer: 'No' },
+    { id: 'e-p3-p5',   source: 'pact-3',  target: 'pact-5',  label: 'Yes — check notification', answer: 'Yes' },
+    { id: 'e-p5-p6',   source: 'pact-5',  target: 'pact-6',  label: 'No — not notified, check exemption', answer: 'No' },
+    { id: 'e-p5-p7',   source: 'pact-5',  target: 'pact-7',  label: 'Yes — notified, check consent', answer: 'Yes' },
+    // Yes #1 into pact-9: from pact-6 (depth 3)
+    { id: 'e-p6-p8',   source: 'pact-6',  target: 'pact-8',  label: 'No — no exemption, halt', answer: 'No' },
+    { id: 'e-p6-p9',   source: 'pact-6',  target: 'pact-9',  label: 'Yes — exemption applies, log & store', answer: 'Yes' },
+    // Yes #2 into pact-9: from pact-7 (depth 3)
+    { id: 'e-p7-p10',  source: 'pact-7',  target: 'pact-10', label: 'No — no consent, record now', answer: 'No' },
+    { id: 'e-p7-p9',   source: 'pact-7',  target: 'pact-9',  label: 'Yes — consent on file, log & store', answer: 'Yes' },
+    // Yes #3 into pact-9: from pact-10 (depth 4)
+    { id: 'e-p10-p11', source: 'pact-10', target: 'pact-11', label: 'No — cannot obtain consent', answer: 'No' },
+    { id: 'e-p10-p9',  source: 'pact-10', target: 'pact-9',  label: 'Yes — consent recorded, log & store', answer: 'Yes' },
+  ],
+};

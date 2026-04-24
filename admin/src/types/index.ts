@@ -138,12 +138,14 @@ export interface StepData {
   isRoot?: boolean;
   isOrphan?: boolean;
   hasIncoming?: boolean;
+  /** Ordered list of source handle IDs — one per outgoing edge. Yes first, then No-{targetId} per No edge. */
+  sourceHandles?: string[];
 }
 
 /** Edge data payload attached to React Flow edges. */
 export interface EdgeData {
   label: string;
-  answer: 'Yes' | 'No';
+  answer: string; // 'Yes' | 'No' — widened to string to support future non-binary paths
 }
 
 /** Step as returned by the REST API (before React Flow wrapping). */
@@ -158,7 +160,7 @@ export interface ApiEdge {
   source: string;
   target: string;
   label: string;
-  answer: 'Yes' | 'No';
+  answer: string; // ACF radio is 'Yes' | 'No' today; widened for future non-binary paths
 }
 
 /** Response shape of GET /wp-json/dt/v1/tree/{module_id} and /tree-resource/{id}. */
