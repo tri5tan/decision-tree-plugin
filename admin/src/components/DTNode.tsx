@@ -1,7 +1,8 @@
-import { useState, memo, createContext, useContext } from "react";
-import { Handle, Position } from "reactflow";
-import { STATUS_COLORS, STATUS_META, CHROME, BADGE } from "../config/theme";
+import { useState, memo, createContext, useContext, useEffect } from "react";
+import { Handle, Position, useUpdateNodeInternals } from "reactflow";
+import { STATUS_COLORS, STATUS_COLORS_BUTTON, STATUS_META, CHROME, BADGE, EDGE_COLORS } from "../config/theme";
 import { getNodeWidth, TRUNCATE_BODY } from "../config/tree-layout-config";
+import { decodeEntities, htmlToSnippet } from "../utils/htmlUtils";
 import type { StepData } from "../types";
 
 // ─── Custom node ─────────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ export function Badge({ children, color = "#666" }: BadgeProps) {
         color: BADGE.text,
         borderRadius: 3,
         // padding:      '1px 7px',
-        padding: "2px 6px 2px 4px",
+        padding: "5px 6px 2px 5px",
         fontSize: 10,
         // lineHeight:   1.5,
         whiteSpace: "nowrap",
@@ -48,6 +49,13 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
   const [hovered, setHovered] = useState(false);
   const { onMarkTerminal, onSetStart, onClearStart } =
     useContext(NodeCallbacks);
+  const updateNodeInternals = useUpdateNodeInternals();
+
+  // Tell ReactFlow to re-measure handle positions whenever sourceHandles changes.
+  // Without this, edges referencing dynamically-added handles can't find their bounds (error #008).
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, data.sourceHandles, updateNodeInternals]);
 
   const statusKey = data.isOrphan
     ? "orphan"
@@ -55,7 +63,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
       ? "start"
       : data.linkStatus;
 
-  const accentColor = STATUS_COLORS[statusKey] || "#888";
+  const accentColor = (STATUS_COLORS[statusKey] || STATUS_COLORS.empty).base;
   const icon = STATUS_META[statusKey] || STATUS_META.empty;
 
   // Determine which actions are possible for this node type
@@ -66,67 +74,95 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
   const hasActions = couldMarkEnd || couldSetStart || couldRemoveStart;
 
   return (
-    <div
+    <div className="node-box"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: CHROME.cardBg,
-        color: CHROME.textStrong,
-        borderRadius: 6,
-        padding: "10px 12px",
-        width: getNodeWidth(),
-        boxSizing: "border-box",
-        // Avoid border shorthand — it clobbers borderLeft when React Flow
-        // toggles the selected state. Set each side individually instead.
-        borderTop:
-          statusKey === "orphan"
-            ? "2px dashed " + STATUS_COLORS.orphan
-            : `2px solid ${selected ? accentColor : CHROME.cardBorderSubtle}`,
-        borderRight:
-          statusKey === "orphan"
-            ? "2px dashed " + STATUS_COLORS.orphan
-            : `2px solid ${selected ? accentColor : CHROME.cardBorderSubtle}`,
-        borderBottom:
-          statusKey === "orphan"
-            ? "2px dashed " + STATUS_COLORS.orphan
-            : `2px solid ${selected ? accentColor : CHROME.cardBorderSubtle}`,
+        borderRadius: "4px 0 0 4px",
         borderLeft:
           statusKey === "orphan"
-            ? `4px dashed ${STATUS_COLORS.orphan}`
+            ? `4px solid ${STATUS_COLORS.orphan.base}`
             : `4px solid ${accentColor}`,
-        boxShadow: CHROME.cardShadow,
+        width: getNodeWidth(),
+        boxSizing: "border-box",
         cursor: "pointer",
-        // fontFamily:   'inherit',
-        fontFamily: "Roboto, sans-serif",
-        fontOpticalSizing: "auto",
-        fontWeight: 400,
-        fontStyle: "normal",
         position: "relative",
-        paddingBottom: hasActions ? 34 : 10,
       }}
-    >
-      <Handle
-        type="target"
-        position={Position.Top}
+      >
+      <div
         style={{
-          width: 10,
-          height: 10,
-          background: CHROME.handleBg,
-          border: `2px solid ${CHROME.handleBorder}`,
-          top: -5,
+          background: CHROME.cardBg,
+          color: CHROME.textStrong,
+          borderRadius: "0 4px 4px 0",
+          padding: "10px 12px",
+          boxSizing: "border-box",
+          fontFamily: "Roboto, sans-serif",
+          fontOpticalSizing: "auto",
+          fontWeight: 400,
+          fontStyle: "normal",
+          paddingBottom: hasActions ? 34 : 10,
+          ...(statusKey === "orphan" 
+            ? {
+                borderTop: selected ? "2px solid " + STATUS_COLORS.orphan.base : "2px dashed " + STATUS_COLORS.orphan.base,
+                borderRight: selected ? "2px solid " + STATUS_COLORS.orphan.base : "2px dashed " + STATUS_COLORS.orphan.base,
+                borderBottom: selected ? "2px solid " + STATUS_COLORS.orphan.base : "2px dashed " + STATUS_COLORS.orphan.base,
+                boxShadow: CHROME.cardShadow,
+              }
+            : {
+                borderTop: "none",
+                borderRight: "none",
+                borderBottom: "none",
+                boxShadow: `inset 0 2px 0 0 ${selected ? accentColor : CHROME.cardBg}, inset -2px 0 0 0 ${selected ? accentColor : CHROME.cardBg}, inset 0 -2px 0 0 ${selected ? accentColor : CHROME.cardBg}, ${CHROME.cardShadow}`,
+              }
+          ),
         }}
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        style={{
-          width: 10,
-          height: 10,
-          background: CHROME.handleBg,
-          border: `2px solid ${CHROME.handleBorder}`,
-          bottom: -5,
-        }}
-      />
+      >
+        <Handle
+          type="target"
+          position={Position.Top}
+          style={{
+            width: 10,
+            height: 10,
+            background: CHROME.handleBg,
+            border: `2px solid ${CHROME.handleBorder}`,
+            top: -5,
+          }}
+        />
+        {/* Dynamic source handles — one per outgoing connection, color-coded and tightly spaced. */}
+        {(data.sourceHandles && data.sourceHandles.length > 0
+          ? data.sourceHandles
+          : ['default' as const]
+        ).map((answer, i, arr) => {
+          const gap = 14;
+          const totalWidth = (arr.length - 1) * gap;
+          const offsetPx = arr.length === 1 ? 0 : i * gap - totalWidth / 2;
+          // const colors = answer === 'Yes'
+          //   ? { bg: EDGE_COLORS.yes.bg, border: EDGE_COLORS.yes.border }
+          //   : answer.startsWith('No')
+          //   ? { bg: EDGE_COLORS.no.bg, border: EDGE_COLORS.no.border }
+          //   : { bg: CHROME.handleBg, border: CHROME.handleBorder };
+          const colours = { 
+            bg: CHROME.handleBg,
+            border: CHROME.handleBorder
+          };
+          return (
+            <Handle
+              key={answer}
+              id={answer}
+              type="source"
+              position={Position.Bottom}
+              style={{
+                width: 10,
+                height: 10,
+                left: `calc(50% + ${offsetPx}px)`,
+                transform: 'translateX(-50%)',
+                background: colours.bg,
+                border: `2px solid ${colours.border}`,
+                bottom: -5,
+              }}
+            />
+          );
+        })}
 
       {/* Status icon row */}
       <div
@@ -152,7 +188,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
           <span
             style={{
               fontSize: 9,
-              background: STATUS_COLORS.start,
+              background: STATUS_COLORS.start.base,
               color: "#fff",
               borderRadius: 10,
               padding: "2px 7px",
@@ -178,7 +214,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
           color: CHROME.textPrimary,
         }}
       >
-        {data.label}
+        {decodeEntities(data.label)}
       </div>
 
       {/* Question snippet — full text, no truncation */}
@@ -194,7 +230,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
             paddingLeft: 6,
           }}
         >
-          {data.question}
+          {decodeEntities(data.question)}
         </div>
       )}
 
@@ -210,17 +246,19 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
             paddingLeft: 6,
           }}
         >
-          {truncate(data.content.replace(/<\/?(p|br|li|div|h[1-6])[^>]*>/gi, " ").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\s{2,}/g, " ").trim(), TRUNCATE_BODY)}
+          {truncate(htmlToSnippet(data.content), TRUNCATE_BODY)}
         </div>
       )}
 
       {/* Footer badges */}
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
         {data.legislation?.length > 0 && (
-          <Badge color="#6366f1">⚖ {data.legislation.length}</Badge>
+          // <Badge color={BADGE.legislation}>⚖ {data.legislation.length}</Badge>
+          <Badge color={BADGE.legislation}>🕮 {data.legislation.length}</Badge>
         )}
         {data.callout && (
-          <Badge color="#0891b2">
+          // <Badge color="#0891b2">
+          <Badge color={BADGE.callout}>
             <svg
               width="10"
               height="10"
@@ -234,7 +272,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
             >
               <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z" />
             </svg>
-            Best practise
+            Best practice
           </Badge>
         )}
       </div>
@@ -276,7 +314,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
                 onSetStart?.(id);
               }}
               style={{
-                background: STATUS_COLORS.start,
+                background: STATUS_COLORS_BUTTON.start,
                 color: "#fff",
                 border: "none",
                 borderRadius: 10,
@@ -298,7 +336,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
                 onMarkTerminal?.(id);
               }}
               style={{
-                background: STATUS_COLORS.terminal,
+                background: STATUS_COLORS_BUTTON.terminal,
                 color: "#fff",
                 border: "none",
                 borderRadius: 10,
@@ -314,6 +352,7 @@ const DTNode = memo(function DTNode({ id, data, selected }: { id: string; data: 
           )}
         </div>
       )}
+    </div>
     </div>
   );
 });

@@ -1,10 +1,11 @@
 import dagre from "dagre";
 import type { Node, Edge } from "reactflow";
 import { getNodeWidth, getNodeHeight, getRankSep, getNodeSep } from "../config/tree-layout-config";
-import { CHROME } from "../config/theme";
+import { CHROME, EDGE_COLORS } from "../config/theme";
 import type { StepData, EdgeData, ApiStep, ApiEdge } from "../types";
 
 /**
+ * BFS = Breadth-First Search — graph traversal that explores nodes level by level (all nodes at depth 0, then depth 1, etc.) rather than going deep down one branch first.
  * BFS from rootId through edges, returning all node ids reachable within
  * `levels` hops (inclusive of root at level 0).
  */
@@ -31,6 +32,85 @@ export function getNodesInFirstNLevels(nodes: Node<StepData>[], edges: Edge<Edge
   return nodes.filter((n) => visited.has(n.id));
 }
 
+// ─── BFS (Breadth-First Search) depth map from natural root (no incoming edges) ─────────────────────
+/**
+ * Returns a Map of nodeId → BFS (shortest-path) depth.
+ * Used internally only to classify edges as forward vs back.
+ * Orphan nodes are assigned depth 9999.
+ */
+function computeBfsDepths(nodes: Node<StepData>[], edges: Edge<EdgeData>[]): Map<string, number> {
+  const targets = new Set(edges.map((e) => e.target));
+  const root = nodes.find((n) => !targets.has(n.id)) ?? nodes[0];
+  if (!root) return new Map();
+
+  const depths = new Map<string, number>();
+  const queue: [string, number][] = [[root.id, 0]];
+  while (queue.length) {
+    const [id, depth] = queue.shift()!;
+    if (depths.has(id)) continue;
+    depths.set(id, depth);
+    edges
+      .filter((e) => e.source === id)
+      .forEach((e) => queue.push([e.target, depth + 1]));
+  }
+  nodes.forEach((n) => { if (!depths.has(n.id)) depths.set(n.id, 9999); });
+  return depths;
+}
+
+/**
+ * Compute layout depths as the LONGEST path from root.
+ *
+ * BFS (Breadth-First Search/shortest path) misranks convergent nodes: a node reached first via a
+ * short path gets a low depth, so edges arriving from deeper parents are
+ * misclassified as back-edges and reversed in dagre — placing the shared node
+ * above one of its parents.
+ *
+ * Two-pass approach:
+ *   Pass 1 — BFS to identify back-edges (tgtBfs <= srcBfs).
+ *   Pass 2 — Topological longest-path over forward-only edges.
+ * Result: every convergent node sits below its deepest parent.
+ */
+function computeLayoutDepths(nodes: Node<StepData>[], edges: Edge<EdgeData>[]): Map<string, number> {
+  // Pass 1: BFS shortest paths — classify forward vs back edges only
+  const bfsDepths = computeBfsDepths(nodes, edges);
+
+  // Pass 2: longest path via Kahn's topological sort on forward edges only.
+  // Use >= not > so same-depth "cross edges" (two parents BFS-equidistant from root
+  // converging on the same child) are included — otherwise the convergent node only
+  // gets depth from one parent and ends up coplanar with the other instead of below it.
+  const forwardEdges = edges.filter(
+    (e) => (bfsDepths.get(e.target) ?? 0) >= (bfsDepths.get(e.source) ?? 0)
+  );
+
+  const inDegree = new Map<string, number>();
+  const adj      = new Map<string, string[]>();
+  nodes.forEach((n) => { inDegree.set(n.id, 0); adj.set(n.id, []); });
+  forwardEdges.forEach((e) => {
+    inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
+    adj.get(e.source)?.push(e.target);
+  });
+
+  const depths = new Map<string, number>();
+  const queue: string[] = [];
+  nodes.forEach((n) => {
+    if (!(inDegree.get(n.id) ?? 0)) { queue.push(n.id); depths.set(n.id, 0); }
+  });
+
+  while (queue.length) {
+    const id = queue.shift()!;
+    const d  = depths.get(id) ?? 0;
+    for (const child of (adj.get(id) ?? [])) {
+      depths.set(child, Math.max(depths.get(child) ?? 0, d + 1));
+      const rem = (inDegree.get(child) ?? 1) - 1;
+      inDegree.set(child, rem);
+      if (rem === 0) queue.push(child);
+    }
+  }
+
+  nodes.forEach((n) => { if (!depths.has(n.id)) depths.set(n.id, 9999); });
+  return depths;
+}
+
 // ─── Auto-layout via dagre ────────────────────────────────────────────────────
 export function applyDagreLayout(nodes: Node<StepData>[], edges: Edge<EdgeData>[]): Node<StepData>[] {
   const graphNodeWidth = getNodeWidth();
@@ -42,8 +122,22 @@ export function applyDagreLayout(nodes: Node<StepData>[], edges: Edge<EdgeData>[
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: "TB", ranksep: graphRankSep, nodesep: graphNodeSep });
 
+  // Compute longest-path depths to correctly classify back edges.
+  // Using BFS (shortest path) misranks convergent nodes — see computeLayoutDepths.
+  // Back edges (tgtDepth <= srcDepth) are reversed for dagre only; real edges render normally.
+  const depths = computeLayoutDepths(nodes, edges);
+
   nodes.forEach((n) => g.setNode(n.id, { width: graphNodeWidth, height: graphNodeHeight }));
-  edges.forEach((e) => g.setEdge(e.source, e.target));
+  edges.forEach((e) => {
+    const srcDepth = depths.get(e.source) ?? 0;
+    const tgtDepth = depths.get(e.target) ?? 9999;
+    if (tgtDepth <= srcDepth) {
+      // Back edge — reverse so dagre places the ancestor at its correct rank
+      g.setEdge(e.target, e.source);
+    } else {
+      g.setEdge(e.source, e.target);
+    }
+  });
   dagre.layout(g);
 
   const laidOut = nodes.map((n) => {
@@ -54,7 +148,7 @@ export function applyDagreLayout(nodes: Node<StepData>[], edges: Edge<EdgeData>[
     };
   });
 
-  return enforceSingleChildCentered(enforceYesLeftNoRight(laidOut, edges), edges);
+  return enforceSingleChildCentered(enforceDirectPolarity(enforceConvergentPosition(enforceYesLeftNoRight(laidOut, edges), edges), edges), edges);
 }
 
 /**
@@ -70,42 +164,49 @@ function buildChildrenMap(edges: Edge<EdgeData>[]): Map<string, string[]> {
 }
 
 /**
- * BFS from startId, returning a Set of all descendant IDs (including startId).
+ * BFS from startId collecting the "exclusive" subtree — nodes that belong only
+ * to this branch. Traversal stops at convergent nodes (incomingCount > 1) so
+ * that shared nodes are never displaced by a single parent's positional swap.
+ * The startId itself is always included regardless of its incoming count.
  */
-function getSubtreeIds(startId: string, childrenMap: Map<string, string[]>): Set<string> {
+function getExclusiveSubtreeIds(
+  startId: string,
+  childrenMap: Map<string, string[]>,
+  incomingCount: Map<string, number>,
+): Set<string> {
   const visited: Set<string> = new Set();
   const queue: string[] = [startId];
   while (queue.length) {
     const id: string = queue.shift()!;
     if (visited.has(id)) continue;
+    // Non-start nodes that have >1 incoming edge are convergent — stop here.
+    if (id !== startId && (incomingCount.get(id) ?? 0) > 1) continue;
     visited.add(id);
-    (childrenMap.get(id) || []).forEach((c: string) => queue.push(c));
+    (childrenMap.get(id) ?? []).forEach((c: string) => queue.push(c));
   }
   return visited;
 }
 
 /**
  * Post-process dagre positions so that for any node with both a Yes and No
- * outgoing edge, the Yes subtree is always to the left and the No subtree is
- * always to the right.
+ * outgoing edge, the Yes subtree is always to the left and No to the right.
  *
- * Shifts the ENTIRE subtree of each child, not just the child node itself, so
- * the whole branch moves together. Processed top-to-bottom so parent-level
- * swaps propagate cleanly before children are adjusted.
- *
- * Fallback: if the two subtrees share any nodes (convergent paths), the swap
- * for that parent is skipped. If answer values are not "Yes"/"No", dagre's
- * natural order (= repeater row order) is kept.
+ * Uses exclusive subtrees (stops at convergent nodes) so that shared nodes are
+ * never displaced by a single parent's swap — those are placed by
+ * enforceConvergentPosition. Processed top-to-bottom so parent-level swaps
+ * propagate cleanly before children are adjusted.
  */
 function enforceYesLeftNoRight(nodes: Node<StepData>[], edges: Edge<EdgeData>[]): Node<StepData>[] {
   const posMap = new Map(nodes.map((n) => [n.id, n.position]));
   const childrenMap = buildChildrenMap(edges);
 
-  // Group outgoing edges by source, sorted top-to-bottom
+  const incomingCount = new Map<string, number>();
+  edges.forEach((e) => incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1));
+
   const outgoing = new Map<string, Edge<EdgeData>[]>();
   edges.forEach((e) => {
     if (!outgoing.has(e.source)) outgoing.set(e.source, []);
-    outgoing.get(e.source )?.push(e);
+    outgoing.get(e.source)?.push(e);
   });
 
   const sortedSources = [...outgoing.keys()].sort(
@@ -114,24 +215,23 @@ function enforceYesLeftNoRight(nodes: Node<StepData>[], edges: Edge<EdgeData>[])
 
   sortedSources.forEach((sourceId) => {
     const outEdges = outgoing.get(sourceId);
-    const yesEdge = outEdges?.find((e) => e.data?.answer === "Yes") || null;
-    const noEdge  = outEdges?.find((e) => e.data?.answer === "No") || null;
+    const yesEdge = outEdges?.find((e) => e.data?.answer === "Yes") ?? null;
+    const noEdge  = outEdges?.find((e) => e.data?.answer === "No")  ?? null;
 
     if (!yesEdge || !noEdge) return;
 
     const yesPos = posMap.get(yesEdge.target);
     const noPos  = posMap.get(noEdge.target);
     if (!yesPos || !noPos) return;
-    if (yesPos.x <= noPos.x) return; // already correct
+    if (yesPos.x <= noPos.x) return; // already correct: Yes is left of No
 
-    const yesSubtree = getSubtreeIds(yesEdge.target, childrenMap);
-    const noSubtree  = getSubtreeIds(noEdge.target,  childrenMap);
-
-    // If the subtrees share nodes (converging paths), skip — can't safely swap
-    if ([...yesSubtree].some((id) => noSubtree.has(id))) return;
+    // Yes is to the right of No — swap exclusive subtrees.
+    // Exclusive subtrees stop at convergent nodes, so the swap never displaces
+    // a node that belongs to another parent's branch as well.
+    const yesSubtree = getExclusiveSubtreeIds(yesEdge.target, childrenMap, incomingCount);
+    const noSubtree  = getExclusiveSubtreeIds(noEdge.target,  childrenMap, incomingCount);
 
     const deltaX = noPos.x - yesPos.x; // negative: Yes moves left, No moves right
-
     yesSubtree.forEach((id) => {
       const p = posMap.get(id);
       if (p) posMap.set(id, { ...p, x: p.x + deltaX });
@@ -140,6 +240,198 @@ function enforceYesLeftNoRight(nodes: Node<StepData>[], edges: Edge<EdgeData>[])
       const p = posMap.get(id);
       if (p) posMap.set(id, { ...p, x: p.x - deltaX });
     });
+  });
+
+  return nodes.map((n) => ({ ...n, position: posMap.get(n.id) ?? n.position }));
+}
+
+/**
+ * Place each convergent node (2+ incoming forward edges) at the centroid of its
+ * parents' X positions, with a polarity bias that extends the Yes-left/No-right
+ * convention:
+ *   All-Yes parents → shift left
+ *   All-No  parents → shift right
+ *   Mixed           → stay at centroid
+ *
+ * Processed top-to-bottom so shallower convergent nodes are settled before
+ * deeper ones use them as reference parents.
+ *
+ * A forward edge is identified by the parent's Y being clearly above the
+ * target's Y (already placed by dagre, only X is modified here).
+ *
+ * After placing convergent nodes, enforce a minimum horizontal gap between all
+ * nodes at the same Y rank so nothing overlaps.
+ */
+function enforceConvergentPosition(nodes: Node<StepData>[], edges: Edge<EdgeData>[]): Node<StepData>[] {
+  const posMap   = new Map(nodes.map((n) => [n.id, n.position]));
+  const nodeWidth  = getNodeWidth();
+  const nodeHeight = getNodeHeight();
+  const bias     = nodeWidth * 0.55;
+  const yThresh  = nodeHeight * 0.25; // parent must be this much higher than child
+
+  // Build forward-incoming map from current Y positions
+  const forwardIncoming = new Map<string, { sourceId: string; answer?: string }[]>();
+  nodes.forEach((n) => forwardIncoming.set(n.id, []));
+  edges.forEach((e) => {
+    const srcY = posMap.get(e.source)?.y ?? 0;
+    const tgtY = posMap.get(e.target)?.y ?? 0;
+    if (srcY < tgtY - yThresh) {
+      forwardIncoming.get(e.target)?.push({ sourceId: e.source, answer: e.data?.answer });
+    }
+  });
+
+  // Process top-to-bottom: shallower nodes are settled first
+  const sortedNodes = [...nodes].sort(
+    (a, b) => (posMap.get(a.id)?.y ?? 0) - (posMap.get(b.id)?.y ?? 0)
+  );
+
+  sortedNodes.forEach((n) => {
+    const parents = forwardIncoming.get(n.id) ?? [];
+    if (parents.length < 2) return; // only act on convergent nodes
+
+    const centroid = parents.reduce((s, p) => s + (posMap.get(p.sourceId)?.x ?? 0), 0) / parents.length;
+    const yesCount = parents.filter((p) => p.answer === "Yes").length;
+    const noCount  = parents.filter((p) => p.answer === "No").length;
+
+    // Double-Yes clause: extra leftward push (not downward) — Yes-side convergence
+    // sits further left to mirror the Yes-left convention and distinguish the path.
+    // Double-No clause: extra downward push (not leftward) — failure/escalation reads
+    // visually distinct and the incoming diagonals have room to separate.
+    const extraBias = (yesCount >= 2 && noCount === 0) ? bias * 0.6 : 0;
+    const targetX =
+      yesCount > 0 && noCount === 0 ? centroid - bias - extraBias :
+      noCount  > 0 && yesCount === 0 ? centroid + bias :
+      centroid;
+
+    const pos = posMap.get(n.id);
+    if (!pos) return;
+    const extraY = (noCount >= 2 && yesCount === 0) ? getRankSep() * 0.85 : 0;
+    posMap.set(n.id, { ...pos, x: targetX, y: pos.y + extraY });
+  });
+
+  // Enforce minimum gap between nodes at the same Y rank
+  const minGap = nodeWidth + 16;
+  const rankGroups = new Map<number, string[]>();
+  nodes.forEach((n) => {
+    const y = Math.round(posMap.get(n.id)?.y ?? 0);
+    if (!rankGroups.has(y)) rankGroups.set(y, []);
+    rankGroups.get(y)!.push(n.id);
+  });
+
+  rankGroups.forEach((ids) => {
+    if (ids.length < 2) return;
+    ids.sort((a, b) => (posMap.get(a)?.x ?? 0) - (posMap.get(b)?.x ?? 0));
+    let changed = true;
+    let iter = 0;
+    while (changed && iter < 20) {
+      changed = false;
+      iter++;
+      for (let i = 0; i < ids.length - 1; i++) {
+        const pa = posMap.get(ids[i])!;
+        const pb = posMap.get(ids[i + 1])!;
+        if (pb.x - pa.x < minGap) {
+          const push = (minGap - (pb.x - pa.x)) / 2;
+          posMap.set(ids[i],     { ...pa, x: pa.x - push });
+          posMap.set(ids[i + 1], { ...pb, x: pb.x + push });
+          changed = true;
+        }
+      }
+    }
+  });
+
+  return nodes.map((n) => ({ ...n, position: posMap.get(n.id) ?? n.position }));
+}
+
+/**
+ * Final polarity pass — run after enforceConvergentPosition.
+ *
+ * Enforces parent-relative positioning: for every parent with both a Yes and
+ * a No outgoing edge, the Yes child must sit at least `halfSpan` to the LEFT
+ * of the parent center and the No child at least `halfSpan` to the RIGHT.
+ * This prevents either child appearing directly beneath the parent when the
+ * other has been shifted far away.
+ *
+ * Only non-convergent children are moved (convergent children with multiple
+ * incoming edges were already placed by enforceConvergentPosition).
+ * Exclusive subtrees travel with their root so non-convergent tails follow.
+ * Processed top-to-bottom so shallower corrections propagate first.
+ *
+ * A final sibling gap check then ensures Yes.x + minGap ≤ No.x regardless
+ * of convergence, splitting any remaining deficit around the midpoint.
+ */
+function enforceDirectPolarity(nodes: Node<StepData>[], edges: Edge<EdgeData>[]): Node<StepData>[] {
+  const posMap      = new Map(nodes.map((n) => [n.id, n.position]));
+  const nodeWidth   = getNodeWidth();
+  // How far each child must sit from the parent's center (one side each).
+  // nodeWidth * 0.7 ≈ half the natural sibling centre-to-centre distance.
+  const halfSpan    = nodeWidth * 0.7;
+  const minGap      = nodeWidth * 1.0;  // absolute floor gap between yes and no
+  const childrenMap = buildChildrenMap(edges);
+
+  const incomingCount = new Map<string, number>();
+  edges.forEach((e) => incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1));
+
+  const outgoing = new Map<string, Edge<EdgeData>[]>();
+  edges.forEach((e) => {
+    if (!outgoing.has(e.source)) outgoing.set(e.source, []);
+    outgoing.get(e.source)!.push(e);
+  });
+
+  const sortedSources = [...outgoing.keys()].sort(
+    (a, b) => (posMap.get(a)?.y ?? 0) - (posMap.get(b)?.y ?? 0)
+  );
+
+  sortedSources.forEach((sourceId) => {
+    const outEdges = outgoing.get(sourceId);
+    const yesEdge  = outEdges?.find((e) => e.data?.answer === "Yes") ?? null;
+    const noEdge   = outEdges?.find((e) => e.data?.answer === "No")  ?? null;
+    if (!yesEdge || !noEdge) return;
+
+    const parentX = posMap.get(sourceId)?.x ?? 0;
+    const yesPos  = posMap.get(yesEdge.target);
+    const noPos   = posMap.get(noEdge.target);
+    if (!yesPos || !noPos) return;
+
+    const yesConvergent = (incomingCount.get(yesEdge.target) ?? 0) > 1;
+    const noConvergent  = (incomingCount.get(noEdge.target)  ?? 0) > 1;
+
+    // ── Parent-relative enforcement (non-convergent children only) ─────────
+    // Yes must be left of parent center — push further left if needed.
+    if (!yesConvergent && yesPos.x > parentX - halfSpan) {
+      const delta = (parentX - halfSpan) - yesPos.x;
+      getExclusiveSubtreeIds(yesEdge.target, childrenMap, incomingCount).forEach((id) => {
+        const p = posMap.get(id);
+        if (p) posMap.set(id, { ...p, x: p.x + delta });
+      });
+    }
+    // No must be right of parent center — push further right if needed.
+    if (!noConvergent && noPos.x < parentX + halfSpan) {
+      const delta = (parentX + halfSpan) - noPos.x;
+      getExclusiveSubtreeIds(noEdge.target, childrenMap, incomingCount).forEach((id) => {
+        const p = posMap.get(id);
+        if (p) posMap.set(id, { ...p, x: p.x + delta });
+      });
+    }
+
+    // ── Absolute sibling gap floor (covers convergent children too) ────────
+    const yp  = posMap.get(yesEdge.target)!;
+    const np  = posMap.get(noEdge.target)!;
+    const gap = np.x - yp.x;
+    if (gap < minGap) {
+      const push = (minGap - gap) / 2;
+      if (!yesConvergent) {
+        getExclusiveSubtreeIds(yesEdge.target, childrenMap, incomingCount).forEach((id) => {
+          const p = posMap.get(id);
+          if (p) posMap.set(id, { ...p, x: p.x - push });
+        });
+      }
+      if (!noConvergent) {
+        getExclusiveSubtreeIds(noEdge.target, childrenMap, incomingCount).forEach((id) => {
+          const p = posMap.get(id);
+          if (p) posMap.set(id, { ...p, x: p.x + push });
+        });
+      }
+    }
   });
 
   return nodes.map((n) => ({ ...n, position: posMap.get(n.id) ?? n.position }));
@@ -184,7 +476,7 @@ function enforceSingleChildCentered(nodes: Node<StepData>[], edges: Edge<EdgeDat
     const deltaX = parentPos.x - childPos.x;
     if (deltaX === 0) return;
 
-    getSubtreeIds(childId, childrenMap).forEach((id) => {
+    getExclusiveSubtreeIds(childId, childrenMap, incomingCount).forEach((id) => {
       const p = posMap.get(id);
       if (p) posMap.set(id, { ...p, x: p.x + deltaX });
     });
@@ -210,10 +502,12 @@ export function buildFlowEdges(apiEdges: ApiEdge[]): Edge<EdgeData>[] {
     target: e.target,
     type: "decision-edge",
     data: { label: e.label, answer: e.answer },
-    markerEnd: { type: "arrowclosed" as const, color: CHROME.edgeStroke },
-    style: { stroke: CHROME.edgeStroke, strokeWidth: 1.5 },
+    markerEnd: { type: "arrowclosed" as const, color: '#999' },
+    style: { stroke: '#999', strokeWidth: 1.5 },
+    // No edges get a unique sourceHandle per target so ReactFlow tracks each independently.
+    // Multiple No edges share the same visual 'No' handle dot — they fan out from it.
+    sourceHandle: e.answer === 'No' ? `No-${e.target}` : e.answer,
   })) as Edge<EdgeData>[];
-  // }));
 }
 
 // ─── Recompute node status from actual edge data ───────────────────────────
@@ -226,7 +520,15 @@ export function recomputeNodeStatuses(nodes: Node<StepData>[], edges: Edge<EdgeD
     const hasIncoming = incomingSet.has(n.id);
     const out = edges.filter((e) => e.source === n.id);
     const hasYes = out.some((e) => e.data?.answer === "Yes");
-    const hasNo = out.some((e) => e.data?.answer === "No");
+    const noEdges = out.filter((e) => e.data?.answer === "No");
+    const hasNo = noEdges.length > 0;
+    // TODO: rethink yes/no decision paths — see plans/decision-tree-plugin.md backlog.
+    // Each No edge gets a unique sourceHandle `No-{targetId}` so ReactFlow tracks positions
+    // independently. All No handles render from the same 'No' visual dot on the node.
+    const sourceHandles: string[] = [
+      ...(hasYes ? ['Yes'] : []),
+      ...noEdges.map(e => (e.sourceHandle as string) || `No-${e.target}`),
+    ];
     if (out.length > 0) {
       return {
         ...n,
@@ -235,10 +537,10 @@ export function recomputeNodeStatuses(nodes: Node<StepData>[], edges: Edge<EdgeD
           isTerminal: false,
           linkStatus: hasYes && hasNo ? "complete" : "partial",
           hasIncoming,
+          sourceHandles,
         },
       };
     }
-    // No outgoing edges — only terminal if explicitly set by user
     const isTerminal = !!n.data.isTerminal;
     return {
       ...n,
@@ -247,9 +549,23 @@ export function recomputeNodeStatuses(nodes: Node<StepData>[], edges: Edge<EdgeD
         isTerminal,
         linkStatus: isTerminal ? "terminal" : "empty",
         hasIncoming,
+        sourceHandles: [],
       },
     };
   });
+}
+
+// ─── Apply persisted positions ────────────────────────────────────────────────
+// When a saved layout exists (from WP postmeta), apply those x/y values directly
+// instead of running dagre. Nodes missing from the saved map keep their default position.
+export function applySavedPositions(
+  nodes: Node<StepData>[],
+  savedPositions: Record<string, { x: number; y: number }>
+): Node<StepData>[] {
+  return nodes.map((n) => ({
+    ...n,
+    position: savedPositions[n.id] ?? n.position,
+  }));
 }
 
 // ─── Orphan / root detection ──────────────────────────────────────────────────
