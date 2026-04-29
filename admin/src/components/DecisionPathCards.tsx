@@ -1,4 +1,4 @@
-import { EDGE_COLORS, CHROME, STATUS_COLORS_BUTTON } from '../config/theme';
+import { EDGE_COLORS, CHROME, FD, STATUS_COLORS_BUTTON } from '../config/theme';
 import type { Edge } from 'reactflow';
 import type { EdgeData } from '../types';
 
@@ -92,7 +92,7 @@ function PathCard({ answer, edge, bg, border, text, onSelectNode }: PathCardProp
           cursor: clickable ? 'pointer' : 'default',
         }}
       >
-        <span style={{ background: border, color: '#fff', borderRadius: 10, padding: '1px 9px', fontWeight: 700, fontSize: 11 }}>
+        <span style={{ background: border, color: FD.btnActionText, borderRadius: 10, padding: '1px 9px', fontWeight: 700, fontSize: 11 }}>
           {answer}
         </span>
         <span style={{ fontSize: 11, color: text, lineHeight: 1.3, wordBreak: 'break-word' }}>

@@ -13,7 +13,7 @@ import EditorNodePanel from "./EditorNodePanel";
 import EditorControlPanel from "./EditorControlPanel";
 import DTNode, { NodeCallbacks } from "./DTNode";
 import DecisionEdge, { EdgeCallbacks } from "./DecisionEdge";
-import { STATUS_COLORS_BUTTON, CHROME, getNodeMinimapColor } from "../config/theme";
+import { STATUS_COLORS_BUTTON, CHROME, FD, getNodeMinimapColor } from "../config/theme";
 import { getZoomBounds } from "../config/tree-layout-config";
 import useTreeEditor from "../hooks/useTreeEditor";
 
@@ -290,7 +290,7 @@ export default function TreeEditor() {
                     style={{
                       fontSize: 11, padding: '4px 10px', borderRadius: 4,
                       background: layoutDirty ? STATUS_COLORS_BUTTON.complete : CHROME.btnNeutralBg,
-                      color: layoutDirty ? '#fff' : CHROME.btnNeutralText,
+                      color: layoutDirty ? FD.btnActionText : CHROME.btnNeutralText,
                       border: 'none', cursor: 'pointer', fontWeight: 600,
                     }}
                   >

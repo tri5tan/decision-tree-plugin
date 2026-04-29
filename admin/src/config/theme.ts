@@ -20,33 +20,103 @@
 // }
 
 // Accent / border colour per status key
+export const GLOBAL = {
+  // Primary brand values are expected to be provided by the site theme.
+  // Components should consume GLOBAL.primary / GLOBAL.primaryText.
+  // This is the one place we keep the fallback values, not in each component.
+  primary: 'var(--primary, #F09644)',
+  primaryText: 'var(--primary-text, #ffffff)',
+};
+
+export const FD = {
+  statusStartBase:  'var(--fd-status-start-base, #1e6b7b)',
+  statusStartBg:    'var(--fd-status-start-bg, #d4e9f0)',
+  statusStartBorder:'var(--fd-status-start-border, #5a9bb0)',
+  statusStartText:  'var(--fd-status-start-text, #1e6b7b)',
+
+  statusCompleteBase:  'var(--fd-status-complete-base, #6f913e)',
+  statusCompleteBg:    'var(--fd-status-complete-bg, #eef5e0)',
+  statusCompleteBorder:'var(--fd-status-complete-border, #99b657)',
+  statusCompleteText:  'var(--fd-status-complete-text, #6f913e)',
+
+  statusPartialBase:  'var(--fd-status-partial-base, #7c7e32)',
+  statusPartialBg:    'var(--fd-status-partial-bg, #f0f0e6)',
+  statusPartialBorder:'var(--fd-status-partial-border, #b0b163)',
+  statusPartialText:  'var(--fd-status-partial-text, #7c7e32)',
+
+  statusEmptyBase:  'var(--fd-status-empty-base, #ac823f)',
+  statusEmptyBg:    'var(--fd-status-empty-bg, #f5f0ea)',
+  statusEmptyBorder:'var(--fd-status-empty-border, #d4b88a)',
+  statusEmptyText:  'var(--fd-status-empty-text, #ac823f)',
+
+  statusTerminalBase:  'var(--fd-status-terminal-base, #5f6b70)',
+  statusTerminalBg:    'var(--fd-status-terminal-bg, #eaeced)',
+  statusTerminalBorder:'var(--fd-status-terminal-border, #8a9299)',
+  statusTerminalText:  'var(--fd-status-terminal-text, #5f6b70)',
+
+  statusOrphanBase:  'var(--fd-status-orphan-base, #7f3d48)',
+  statusOrphanBg:    'var(--fd-status-orphan-bg, #f4ebe9)',
+  statusOrphanBorder:'var(--fd-status-orphan-border, #a6686f)',
+  statusOrphanText:  'var(--fd-status-orphan-text, #7f3d48)',
+
+  edgeYesBg:    'var(--fd-edge-yes-bg, #eff3e9)',
+  edgeYesBorder:'var(--fd-edge-yes-border, #9db679)',
+  edgeYesText:  'var(--fd-edge-yes-text, #648734)',
+
+  edgeNoBg:    'var(--fd-edge-no-bg, #f4ecea)',
+  edgeNoBorder:'var(--fd-edge-no-border, #d09e8e)',
+  edgeNoText:  'var(--fd-edge-no-text, #b7694e)',
+
+  canvasBg:      'var(--fd-canvas-bg, var(--bg-surface, #f7f7f7))',
+  canvasGrid:    'var(--fd-canvas-grid, #ccc)',
+  panelBg:       'var(--fd-panel-bg, var(--bg-surface, #fff))',
+  panelBorder:   'var(--fd-panel-border, var(--border-primary, #ddd))',
+  cardBg:        'var(--fd-card-bg, var(--bg-surface, #fff))',
+  cardBorderSubtle:'var(--fd-card-border-subtle, var(--border-primary, #e5e7eb))',
+  cardShadow:    'var(--fd-card-shadow, var(--shadow-primary, 0 1px 4px rgba(0,0,0,0.08)))',
+  handleBg:      'var(--fd-handle-bg, #ddd)',
+  handleBorder:  'var(--fd-handle-border, var(--border-primary, #aaa))',
+  edgeStroke:    'var(--fd-edge-stroke, var(--border-primary, #999))',
+
+  textStrong:      'var(--fd-text-strong, var(--text-title, #1a1a1a))',
+  textPrimary:     'var(--fd-text-primary, var(--text-body, #404040))',
+  textSecondary:   'var(--fd-text-secondary, #555)',
+  textMuted:       'var(--fd-text-muted, #666)',
+  textSubtle:      'var(--fd-text-subtle, #888)',
+  textPlaceholder: 'var(--fd-text-placeholder, #aaa)',
+  textError:       'var(--fd-text-error, var(--error-5, #c0392b))',
+
+  btnNeutralBg:  'var(--fd-btn-neutral-bg, var(--light, #eee))',
+  btnNeutralText:'var(--fd-btn-neutral-text, var(--text-body, #333))',
+  btnActionBg:   'var(--fd-btn-action-bg, var(--primary, #F09644))',
+  btnActionText: 'var(--fd-btn-action-text, var(--primary-text, #ffffff))',
+
+  inputBorder:      'var(--fd-input-border, var(--border-primary, #ccc))',
+  inputBgReadonly:  'var(--fd-input-bg-readonly, var(--bg-body, #e4edf5))',
+
+  overlay:      'var(--fd-overlay, rgba(0,0,0,0.45))',
+  modalBg:      'var(--fd-modal-bg, var(--bg-surface, #fff))',
+  modalShadow:  'var(--fd-modal-shadow, var(--shadow-primary, 0 8px 32px rgba(0,0,0,0.25)))',
+
+  errorBg: 'var(--fd-error-bg, var(--error-5, #fde8e8))',
+  infoBg:  'var(--fd-info-bg, var(--secondary-10, #f2f8ff))',
+
+  rowBg:         'var(--fd-row-bg, var(--bg-body, #f5f5f5))',
+  sectionLabel:  'var(--fd-section-label, var(--text-body, #999))',
+
+  badgeBg:          'var(--fd-badge-bg, #dcfef4)',
+  badgeText:        'var(--fd-badge-text, #404040)',
+  badgeLegislation: 'var(--fd-badge-legislation, #6366f1)',
+  badgeCallout:     'var(--fd-badge-callout, #0891b2)',
+} as const;
+
 export const STATUS_COLORS = {
-  // // start:    '#2c6e49', // green  — entry/root node
-  // // start:    '#2563eb', // blue  — entry/root node
-  // start:    '#1e6b7b', // Teal With It  — entry/root node
-  // // complete: '#5A6E1A', // green  — all links set
-  // complete: '#6f913e', // Hidden Valley green  — all links set
-  // // partial:  '#d97706', // amber  — one link missing
-  // // empty:    '#d97706', // amber  — no links yet
-  // // partial:  '#6e661a', // amber  — one link missing
-  // partial:  '#7c7e32', // Green Commando — one link missing
-  // empty:    '#ac823f', // Weissbier — no links yet
-  // // terminal: '#2563eb', // blue   — end/resolution node
-  // terminal: '#5f6b70', // grey   — end/resolution node
-  // // orphan:   '#c0392b', // red — disconnected from tree
-  // orphan:   '#7f3d48', // Köfte Brown — disconnected from tree
-  // start:    createColorScale('#1e6b7b'), // Teal With It  — entry/root node
-  // complete: createColorScale('#6f913e'), // Hidden Valley green  — all links set
-  // partial:  createColorScale('#7c7e32'), // Green Commando — one link missing
-  // empty:    createColorScale('#ac823f'), // Weissbier — no links yet
-  // terminal: createColorScale('#5f6b70'), // grey   — end/resolution node
-  // orphan:   createColorScale('#7f3d48'), // Köfte Brown — disconnected from tree
-  start:    { base: '#1e6b7b', bg: '#d4e9f0', border: '#5a9bb0', text: '#1e6b7b' }, // Teal With It
-  complete: { base: '#6f913e', bg: '#eef5e0', border: '#99b657', text: '#6f913e' }, // Hidden Valley green
-  partial:  { base: '#7c7e32', bg: '#f0f0e6', border: '#b0b163', text: '#7c7e32' }, // Green Commando
-  empty:    { base: '#ac823f', bg: '#f5f0ea', border: '#d4b88a', text: '#ac823f' }, // Weissbier
-  terminal: { base: '#5f6b70', bg: '#eaeced', border: '#8a9299', text: '#5f6b70' }, // grey
-  orphan:   { base: '#7f3d48', bg: '#f4ebe9', border: '#a6686f', text: '#7f3d48' }, // Köfte Brown
+  start:    { base: FD.statusStartBase, bg: FD.statusStartBg, border: FD.statusStartBorder, text: FD.statusStartText },
+  complete: { base: FD.statusCompleteBase, bg: FD.statusCompleteBg, border: FD.statusCompleteBorder, text: FD.statusCompleteText },
+  partial:  { base: FD.statusPartialBase, bg: FD.statusPartialBg, border: FD.statusPartialBorder, text: FD.statusPartialText },
+  empty:    { base: FD.statusEmptyBase, bg: FD.statusEmptyBg, border: FD.statusEmptyBorder, text: FD.statusEmptyText },
+  terminal: { base: FD.statusTerminalBase, bg: FD.statusTerminalBg, border: FD.statusTerminalBorder, text: FD.statusTerminalText },
+  orphan:   { base: FD.statusOrphanBase, bg: FD.statusOrphanBg, border: FD.statusOrphanBorder, text: FD.statusOrphanText },
 };
 
 // ─── Derived color contexts ────────────────────────────────────────────────────
@@ -67,6 +137,7 @@ export const STATUS_COLORS_BUTTON = {
   terminal: STATUS_COLORS.terminal.base,
   orphan:   STATUS_COLORS.orphan.base,
 } as const;
+
 
 // Short text labels (used in sidebar status badge)
 export const STATUS_LABELS = {
@@ -106,10 +177,10 @@ export function getStatusKey(data: { isOrphan?: boolean; isRoot?: boolean; linkS
 //   no:  { bg: '#FDF2F2', border: '#F0C0C0', text: '#8A3030' },
 // };
 export const EDGE_COLORS = {
-  yes: { bg: '#eff3e9', border: '#9db679', text: '#648734' },
+  yes: { bg: FD.edgeYesBg, border: FD.edgeYesBorder, text: FD.edgeYesText },
   // yes: createColorScale('#648734'), // Green Commando
   // no:  { bg: '#eddfe0', border: '#ccaaaf', text: '#7f3d48' },
-  no:  { bg: '#f4ecea', border: '#d09e8e', text: '#b7694e' },
+  no:  { bg: FD.edgeNoBg, border: FD.edgeNoBorder, text: FD.edgeNoText },
   // no:  createColorScale('#b7694e'), // Clay
 };
 
@@ -117,63 +188,63 @@ export const EDGE_COLORS = {
 
 export const CHROME = {
   // Canvas
-  canvasBg:         '#f7f7f7', // '#f0f0f1',
+  canvasBg:         FD.canvasBg,
   canvasBgOverlay: 'rgba(240,240,241,0.8)',
-  canvasGrid:      '#ccc',
+  canvasGrid:      FD.canvasGrid,
 
   // Panels / sidebars
-  panelBg:        '#fff', // '#fafafa',
-  panelBorder:     '#ddd',
+  panelBg:        FD.panelBg,
+  panelBorder:     FD.panelBorder,
 
   // Cards (nodes)
-  cardBg:          '#fff',
-  cardBorderSubtle:'#e5e7eb',
-  cardShadow:      '0 1px 4px rgba(0,0,0,0.08)',
+  cardBg:          FD.cardBg,
+  cardBorderSubtle:FD.cardBorderSubtle,
+  cardShadow:      FD.cardShadow,
 
   // Graph handles + edges
-  handleBg:        '#ddd',
-  handleBorder:    '#aaa',
-  edgeStroke:      '#999',
+  handleBg:        FD.handleBg,
+  handleBorder:    FD.handleBorder,
+  edgeStroke:      FD.edgeStroke,
 
   // Text hierarchy
-  textStrong:      '#1a1a1a',  // headings, node titles
-  textPrimary:     '#404040',  // body text
-  textSecondary:   '#555',     // supporting text, italics
-  textMuted:       '#666',     // captions, snippets
-  textSubtle:      '#888',     // hints, placeholders, disabled
-  textPlaceholder: '#aaa',     // empty-state copy
+  textStrong:      FD.textStrong,  // headings, node titles
+  textPrimary:     FD.textPrimary,  // body text
+  textSecondary:   FD.textSecondary,     // supporting text, italics
+  textMuted:       FD.textMuted,     // captions, snippets
+  textSubtle:      FD.textSubtle,     // hints, placeholders, disabled
+  textPlaceholder: FD.textPlaceholder,     // empty-state copy
 
   // Neutral button (cancel / secondary action)
-  btnNeutralBg:    '#eee',
-  btnNeutralText:  '#333',
+  btnNeutralBg:    FD.btnNeutralBg,
+  btnNeutralText:  FD.btnNeutralText,
 
   // Note: primary (green) and danger (red) buttons use STATUS_COLORS.start / .orphan
 
   // Form inputs
-  inputBorder:     '#ccc',
-  inputBgReadonly: '#e4edf5',
+  inputBorder:     FD.inputBorder,
+  inputBgReadonly: FD.inputBgReadonly,
 
   // Overlays / modals
-  overlay:         'rgba(0,0,0,0.45)',
-  modalBg:         '#fff',
-  modalShadow:     '0 8px 32px rgba(0,0,0,0.25)',
+  overlay:         FD.overlay,
+  modalBg:         FD.modalBg,
+  modalShadow:     FD.modalShadow,
 
   // Status banners
-  errorBg:         '#fde8e8',
-  infoBg:          '#f2f8ff',
+  errorBg:         FD.errorBg,
+  infoBg:          FD.infoBg,
 
   // Misc
-  rowBg:           '#f5f5f5',
-  sectionLabel:    '#999',
+  rowBg:           FD.rowBg,
+  sectionLabel:    FD.sectionLabel,
 };
 
 // ─── Node footer badge pills ───────────────────────────────────────────────────
 
 export const BADGE = {
-  bg:          '#dcfef4', // '#deffe1',
-  text:        '#404040',
-  legislation: '#6366f1',  // indigo
-  callout:     '#0891b2',  // cyan
+  bg:          FD.badgeBg,
+  text:        FD.badgeText,
+  legislation: FD.badgeLegislation,
+  callout:     FD.badgeCallout,
 };
 
 

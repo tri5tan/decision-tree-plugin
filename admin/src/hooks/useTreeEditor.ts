@@ -11,6 +11,7 @@ import {
   getNodesInFirstNLevels,
   applySavedPositions,
 } from "../utils/graphUtils";
+import { CHROME } from '../config/theme';
 import {
   DEV_MODULES,
   DEV_TOPICS,
@@ -423,8 +424,9 @@ export default function useTreeEditor() {
 
   // Removes an edge from state and from the ACF decisions repeater in WP
   const deleteEdge = useCallback(
-    async (edgeId: string, answer: string, sourceNodeId: string) => {
+    async (edgeId: string, answer: string, sourceNodeId: string, targetNodeId: string) => {
       const srcPostId = sourceNodeId.replace("sm-", "");
+      const targetPostId = parseInt(targetNodeId.replace("sm-", ""), 10);
       try {
         if (!IS_DEV) {
           await fetch(`${restUrl}node/${srcPostId}`, {
@@ -433,7 +435,7 @@ export default function useTreeEditor() {
               "Content-Type": "application/json",
               "X-WP-Nonce": window.dt?.nonce || "",
             },
-            body: JSON.stringify({ disconnect: { answer } }),
+            body: JSON.stringify({ disconnect: { answer, target_id: targetPostId } }),
           });
         }
         // Compute updated state using current edges closure (latest committed after await).
@@ -552,8 +554,8 @@ export default function useTreeEditor() {
         sourceHandle: noHandle ?? answer,
         type: "decision-edge",
         data: { label: answer, answer },
-        markerEnd: { type: "arrowclosed", color: '#999' },
-        style: { stroke: '#999', strokeWidth: 1.5 },
+        markerEnd: { type: "arrowclosed", color: CHROME.edgeStroke },
+        style: { stroke: CHROME.edgeStroke, strokeWidth: 1.5 },
       };
       // Compute new sourceHandles for the source node.
       const currentOut = edges.filter(e => e.source === sourceNodeId);
@@ -921,8 +923,8 @@ export default function useTreeEditor() {
         sourceHandle,
         type: "decision-edge",
         data: { label: answer, answer },
-        markerEnd: { type: "arrowclosed", color: '#999' },
-        style: { stroke: '#999', strokeWidth: 1.5 },
+        markerEnd: { type: "arrowclosed", color: CHROME.edgeStroke },
+        style: { stroke: CHROME.edgeStroke, strokeWidth: 1.5 },
       };
       // Compute sourceHandles ahead of time using the current edges closure.
       // setNodes and setEdges are sibling calls — React 18 batches them into one render

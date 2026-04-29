@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Topic, Module } from "../types";
 import type { LayoutSettings, NodeWidth } from "../config/tree-layout-config";
-import { STATUS_COLORS, STATUS_COLORS_BUTTON, STATUS_META, CHROME } from "../config/theme";
+import { STATUS_COLORS, STATUS_COLORS_BUTTON, STATUS_META, CHROME, FD } from "../config/theme";
 
 // ─── Status chip (used in sidebar legend only) ───────────────────────────────
 function StatusChip({ status }: { status: string }) {
@@ -220,7 +220,7 @@ export default function EditorControlPanel({
             width: "100%",
             padding: "6px 0",
             background: STATUS_COLORS_BUTTON.start,
-            color: "#fff",
+            color: FD.btnActionText,
             border: "none",
             borderRadius: 4,
             fontSize: 12,
@@ -256,7 +256,7 @@ export default function EditorControlPanel({
                 flex: 1,
                 padding: "5px 0",
                 background: STATUS_COLORS_BUTTON.start,
-                color: "#fff",
+                color: FD.btnActionText,
                 border: "none",
                 borderRadius: 3,
                 fontSize: 11,
@@ -319,7 +319,7 @@ export default function EditorControlPanel({
                   fontSize: 10,
                   border: `1px solid ${layoutSettings.nodeWidth === w ? STATUS_COLORS_BUTTON.start : CHROME.panelBorder}`,
                   background: layoutSettings.nodeWidth === w ? STATUS_COLORS_BUTTON.start : CHROME.cardBg,
-                  color: layoutSettings.nodeWidth === w ? "#fff" : CHROME.textPrimary,
+                  color: layoutSettings.nodeWidth === w ? FD.btnActionText : CHROME.textPrimary,
                   cursor: "pointer",
                   borderRadius: 3,
                   textTransform: "capitalize",
@@ -342,7 +342,7 @@ export default function EditorControlPanel({
                   fontSize: 10,
                   border: `1px solid ${layoutSettings.spacing === s ? STATUS_COLORS_BUTTON.start : CHROME.panelBorder}`,
                   background: layoutSettings.spacing === s ? STATUS_COLORS_BUTTON.start : CHROME.cardBg,
-                  color: layoutSettings.spacing === s ? "#fff" : CHROME.textPrimary,
+                  color: layoutSettings.spacing === s ? FD.btnActionText : CHROME.textPrimary,
                   cursor: "pointer",
                   borderRadius: 3,
                   textTransform: "capitalize",
@@ -370,7 +370,7 @@ export default function EditorControlPanel({
                     fontSize: 10,
                     border: `1px solid ${isActive ? STATUS_COLORS_BUTTON.start : CHROME.panelBorder}`,
                     background: isActive ? STATUS_COLORS_BUTTON.start : CHROME.cardBg,
-                    color: isActive ? "#fff" : CHROME.textPrimary,
+                    color: isActive ? FD.btnActionText : CHROME.textPrimary,
                     cursor: "pointer",
                     borderRadius: 3,
                   }}

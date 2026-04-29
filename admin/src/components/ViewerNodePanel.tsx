@@ -14,21 +14,21 @@ interface ViewerNodePanelProps {
 export default function ViewerNodePanel({ node, outgoingEdges = [], onClose, onSelectNode }: ViewerNodePanelProps) {
   const d         = node.data;
   const statusKey = getStatusKey(d);
-  const color     = STATUS_COLORS[statusKey] || '#888';
+  const color     = STATUS_COLORS[statusKey] || CHROME.textSubtle;
   const label     = STATUS_LABELS[statusKey] || 'Unknown';
 
   const yesEdge = outgoingEdges.find(e => e.data?.answer === 'Yes');
   const noEdges  = outgoingEdges.filter(e => e.data?.answer === 'No');
 
   return (
-    <div style={{
+    <div className='viewer-node-panel' style={{
       width: '35%', maxWidth: 415, padding: 16, borderLeft: `1px solid ${CHROME.panelBorder}`,
       background: CHROME.panelBg, overflowY: 'auto', fontSize: 13, flexShrink: 0,
     }}>
       {/* Header with title */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ flex: 1, paddingRight: 8 }}>
-          <h3 style={{ margin: 0, fontSize: 14, lineHeight: 1.4 }}>
+      <div className='header' style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div className='title-box' style={{ flex: 1, paddingRight: 8 }}>
+          <h3 className='title' style={{ margin: 0, fontSize: 14, lineHeight: 1.4 }}>
             {decodeEntities(d.label)}
           </h3>
         </div>
@@ -44,7 +44,7 @@ export default function ViewerNodePanel({ node, outgoingEdges = [], onClose, onS
       {/* Status badge */}
       {/* <span className='status-badge' style={{
         display: 'inline-block', padding: '2px 9px', borderRadius: 12,
-        background: color, color: '#fff', fontSize: 11, marginBottom: 10,
+        background: color, color: FD.btnActionText, fontSize: 11, marginBottom: 10,
       }}>
         {label}
       </span> */}
@@ -65,14 +65,14 @@ export default function ViewerNodePanel({ node, outgoingEdges = [], onClose, onS
       {/* Best practice callout — read-only */}
       {d.callout && (
         <Section>
-          <p style={{ margin: 0, lineHeight: 1.5 }}>{decodeEntities(d.callout)}</p>
+          <p className='callout' style={{ margin: 0, lineHeight: 1.5 }}>{decodeEntities(d.callout)}</p>
         </Section>
       )}
 
       {/* Body content — read-only */}
       {d.content && (
         <Section>
-          <div style={{ lineHeight: 1.55, fontSize: 12, color: CHROME.textPrimary }} dangerouslySetInnerHTML={{ __html: d.content }} />
+          <div className='body-content' style={{ lineHeight: 1.55, fontSize: 12, color: CHROME.textPrimary }} dangerouslySetInnerHTML={{ __html: d.content }} />
         </Section>
       )}
 
@@ -105,9 +105,9 @@ export default function ViewerNodePanel({ node, outgoingEdges = [], onClose, onS
 
 function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div className='section-box' style={{ marginBottom: 14 }}>
       {title && (
-        <div style={{
+        <div className='section-title' style={{
           fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em',
           color: CHROME.sectionLabel, marginBottom: 5, fontWeight: 600,
         }}>
@@ -121,7 +121,7 @@ function Section({ title, children }: { title?: string; children: React.ReactNod
 
 function PathRow({ answer, color, bg, label, warn }: { answer: string; color: string; bg: string; label?: string; warn?: boolean }) {
   return (
-    <div style={{
+    <div className='path-row' style={{
       display: 'flex', alignItems: 'baseline', gap: 6,
       marginBottom: 6, fontSize: 12,
     }}>

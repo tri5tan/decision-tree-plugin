@@ -1,14 +1,14 @@
 import { useState, useContext, createContext } from "react";
 import { getSmoothStepPath, BaseEdge, EdgeLabelRenderer } from "reactflow";
 import type { EdgeProps } from "reactflow";
-import { EDGE_COLORS, STATUS_COLORS } from "../config/theme";
+import { CHROME, EDGE_COLORS, STATUS_COLORS } from "../config/theme";
 import { getNodeWidth } from "../config/tree-layout-config";
 import type { EdgeData } from "../types";
 
 // ─── Edge callbacks context ───────────────────────────────────────────────────
 // Provided by TreeEditor. Null in the viewer — keeps edges fully inert there.
 export const EdgeCallbacks = createContext<{
-  onDeleteEdge: (edgeId: string, answer: string, sourceNodeId: string) => void;
+  onDeleteEdge: (edgeId: string, answer: string, sourceNodeId: string, targetNodeId: string) => void;
 } | null>(null);
 
 // ─── Custom edge ─────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ export const EdgeCallbacks = createContext<{
 export default function DecisionEdge({
   id,
   source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -51,7 +52,7 @@ export default function DecisionEdge({
   // No path: lighter and slightly receded — shows through when coincident at source.
   const edgeStyle = {
     ...style,
-    stroke: '#999',   // path is always grey; label pill carries the yes/no colour
+    stroke: CHROME.edgeStroke,   // path is always grey; label pill carries the yes/no colour
     // strokeWidth: isYes ? 2 : 1.5,
     // opacity: isYes ? 1 : 0.65,
     strokeWidth: 1.5,
@@ -104,7 +105,7 @@ export default function DecisionEdge({
           {data?.label || data?.answer}
           {hovered && edgeCtx && (
             <div
-              onClick={() => edgeCtx.onDeleteEdge(id, data?.answer || '', source)}
+              onClick={() => edgeCtx.onDeleteEdge(id, data?.answer || '', source, target)}
               style={{
                 marginTop: 5,
                 fontSize: 10,

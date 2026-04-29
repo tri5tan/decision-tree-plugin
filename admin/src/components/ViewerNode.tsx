@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Handle, Position } from "reactflow";
 import { STATUS_COLORS, CHROME, BADGE, EDGE_COLORS } from "../config/theme";
 import { getNodeWidth, TRUNCATE_BODY } from "../config/tree-layout-config";
-import { decodeEntities, htmlToSnippet } from "../utils/htmlUtils";
+import { decodeEntities, htmlToSnippet, normaliseQuillHtml } from "../utils/htmlUtils";
 import type { StepData } from "../types";
 
 // Uniform teal accent for all viewer nodes — no status colour coding in the public view.
@@ -21,11 +21,15 @@ function Badge({ children, color = "#666" }: BadgeProps) {
     <span
       className="badge"
       style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
         background: BADGE.bg,
         color: BADGE.text,
         borderRadius: 3,
-        // padding: '2px 6px 2px 4px',
-        padding: "5px 6px 2px 5px",
+        padding: "3px 8px",
+        minHeight: 18,
+        lineHeight: 1,
         fontSize: 10,
         whiteSpace: "nowrap",
         fontWeight: 600,
@@ -191,10 +195,11 @@ const ViewerNode = memo(function ViewerNode({
               marginBottom: 6,
               borderLeft: `2px solid ${CHROME.cardBorderSubtle}`,
               paddingLeft: 6,
+              maxHeight: '4.2em',
+              overflow: 'hidden',
             }}
-          >
-            {truncate(htmlToSnippet(data.content), TRUNCATE_BODY)}
-          </div>
+            dangerouslySetInnerHTML={{ __html: normaliseQuillHtml(data.content) }}
+          />
         )}
 
         {/* Footer badges (like TreeEditor) */}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { STATUS_COLORS, STATUS_COLORS_BUTTON, STATUS_LABELS, EDGE_COLORS, CHROME, getStatusKey } from '../config/theme';
-import { decodeEntities } from '../utils/htmlUtils';
+import { STATUS_COLORS, STATUS_COLORS_BUTTON, STATUS_LABELS, EDGE_COLORS, CHROME, FD, getStatusKey } from '../config/theme';
+import { decodeEntities, normaliseQuillHtml, denormaliseForQuill } from '../utils/htmlUtils';
 import DecisionPathCards from './DecisionPathCards';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
@@ -14,7 +14,7 @@ interface EditorNodePanelProps {
   editPostUrl?: string;
   onUpdateNode: (nodeId: string, patch: Partial<StepData>) => void;
   onUpdateEdge: (edgeId: string, patch: Record<string, unknown>) => void;
-  onDeleteEdge: (edgeId: string, answer: string, sourceNodeId: string) => void;
+  onDeleteEdge: (edgeId: string, answer: string, sourceNodeId: string, targetNodeId: string) => void;
   onDeleteNode: (nodeId: string) => void;
   onMarkTerminal: (nodeId: string) => void;
   onSetStart: (nodeId: string) => void;
@@ -27,7 +27,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
   const d         = node.data;
   const postId    = node.id.replace('sm-', '');
   const statusKey = getStatusKey(d);
-  const color      = STATUS_COLORS[statusKey] || '#888';
+  const color      = STATUS_COLORS[statusKey] || CHROME.textSubtle;
   const label      = STATUS_LABELS[statusKey] || 'Unknown';
 
   const yesEdge = outgoingEdges.find(e => e.data?.answer === 'Yes');
@@ -87,10 +87,10 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
         await fetch(`${restUrl}node/${postId}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.dt?.nonce || '' },
-          body: JSON.stringify({ question_text: questionDraft }),
+          body: JSON.stringify({ question_text: normaliseQuillHtml(questionDraft) }),
         });
       }
-      onUpdateNode?.(node.id, { question: questionDraft });
+      onUpdateNode?.(node.id, { question: normaliseQuillHtml(questionDraft) });
       setEditingQ(false);
     } catch (e) {
       console.error('Save failed', e);
@@ -127,10 +127,10 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
         await fetch(`${restUrl}node/${postId}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.dt?.nonce || '' },
-          body: JSON.stringify({ callout: calloutDraft }),
+          body: JSON.stringify({ callout: normaliseQuillHtml(calloutDraft) }),
         });
       }
-      onUpdateNode?.(node.id, { callout: calloutDraft || null });
+      onUpdateNode?.(node.id, { callout: normaliseQuillHtml(calloutDraft) || null });
       setEditingCallout(false);
     } catch (e) {
       console.error('Save failed', e);
@@ -147,10 +147,10 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
         await fetch(`${restUrl}node/${postId}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.dt?.nonce || '' },
-          body: JSON.stringify({ admin_notes: notesDraft }),
+          body: JSON.stringify({ admin_notes: normaliseQuillHtml(notesDraft) }),
         });
       }
-      onUpdateNode?.(node.id, { adminNotes: notesDraft });
+      onUpdateNode?.(node.id, { adminNotes: normaliseQuillHtml(notesDraft) });
       setEditingNotes(false);
     } catch (e) {
       console.error('Save failed', e);
@@ -215,21 +215,21 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
       const restUrl = window.dt?.restUrl;
       if (restUrl) {
         if (yesEdge) {
+          const yesTargetId = parseInt(yesEdge.target.replace('sm-', ''), 10);
           await fetch(`${restUrl}node/${postId}`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.dt?.nonce || '' },
-            body: JSON.stringify({ decision_label: { answer: 'Yes', text: yesDraft } }),
+            body: JSON.stringify({ decision_label: { answer: 'Yes', text: yesDraft, target_id: yesTargetId } }),
           });
           onUpdateEdge(yesEdge.id, { label: yesDraft });
         }
-        // TODO: PHP `decision_label` endpoint matches by answer only — with multiple No edges
-        // all rows get the same label. Per-row editing needs target_id support server-side.
         for (const noEdge of noEdges) {
           const draft = noDrafts[noEdge.id] || '';
+          const targetId = parseInt(noEdge.target.replace('sm-', ''), 10);
           await fetch(`${restUrl}node/${postId}`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.dt?.nonce || '' },
-            body: JSON.stringify({ decision_label: { answer: 'No', text: draft } }),
+            body: JSON.stringify({ decision_label: { answer: 'No', text: draft, target_id: targetId } }),
           });
           onUpdateEdge(noEdge.id, { label: draft });
         }
@@ -250,10 +250,10 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
         await fetch(`${restUrl}node/${postId}`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.dt?.nonce || '' },
-          body: JSON.stringify({ body_content: bodyDraft }),
+          body: JSON.stringify({ body_content: normaliseQuillHtml(bodyDraft) }),
         });
       }
-      onUpdateNode?.(node.id, { rawContent: bodyDraft, content: bodyDraft });
+      onUpdateNode?.(node.id, { rawContent: bodyDraft, content: normaliseQuillHtml(bodyDraft) });
       setEditingBody(false);
     } catch (e) {
       console.error('Save failed', e);
@@ -280,7 +280,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
               />
               <div style={{ display: 'flex', gap: 5, marginTop: 5 }}>
                 <button onClick={saveTitle} disabled={savingTitle}
-                  style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
+                  style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
                   {savingTitle ? 'Saving…' : 'Save'}
                 </button>
                 <button onClick={() => setEditingTitle(false)}
@@ -311,7 +311,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
       {/* Status badge */}
       <span style={{
         display: 'inline-block', padding: '2px 9px', borderRadius: 12,
-        background: color.base, color: '#fff', fontSize: 11, marginBottom: 10,
+        background: color.base, color: FD.btnActionText, fontSize: 11, marginBottom: 10,
       }}>
         {label}
       </span>
@@ -336,7 +336,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
             {canSetStart && (
               <button
                 onClick={() => onSetStart(node.id)}
-                style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 ▶ Set as start
               </button>
@@ -344,7 +344,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
             {canMarkEnd && (
               <button
                 onClick={() => onMarkTerminal(node.id)}
-                style={{ background: STATUS_COLORS_BUTTON.terminal, color: '#fff', border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: STATUS_COLORS_BUTTON.terminal, color: FD.btnActionText, border: 'none', borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
               >
                 ■ Mark as end
               </button>
@@ -386,7 +386,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
               <button
                 onClick={saveQuestion}
                 disabled={saving}
-                style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}
+                style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}
               >
                 {saving ? 'Saving…' : 'Save'}
               </button>
@@ -400,8 +400,8 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
           </div>
         ) : (
           d.question
-            ? <div style={{ margin: 0, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: d.question }} />
-            : <p style={{ margin: 0, color: d.isTerminal ? '#888' : '#c0392b', fontStyle: 'italic' }}>
+            ? <div style={{ margin: 0, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: normaliseQuillHtml(d.question) }} />
+            : <p style={{ margin: 0, color: d.isTerminal ? CHROME.textSubtle : FD.textError, fontStyle: 'italic' }}>
                 {d.isTerminal ? 'End node — no question' : '⚠ No question_text set'}
               </p>
         )}
@@ -429,7 +429,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
             />
             <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
               <button onClick={saveCallout} disabled={savingCallout}
-                style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {savingCallout ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => setEditingCallout(false)}
@@ -440,7 +440,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
           </div>
         ) : (
           d.callout
-            ? <div style={{ margin: 0, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: d.callout }} />
+            ? <div style={{ margin: 0, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: normaliseQuillHtml(d.callout) }} />
             : <p style={{ margin: 0, color: CHROME.textPlaceholder, fontStyle: 'italic', fontSize: 12 }}>None set</p>
         )}
       </Section>
@@ -468,7 +468,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
             {/* <p style={{ margin: '4px 0 5px', fontSize: 10, color: CHROME.textPlaceholder }}>HTML tags are allowed (p, strong, em, ul, li…)</p> */}
             <div style={{ display: 'flex', margin: '4px 0 5px', gap: 6 }}>
               <button onClick={saveBody} disabled={savingBody}
-                style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {savingBody ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => setEditingBody(false)}
@@ -479,7 +479,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
           </div>
         ) : (
           d.content
-            ? <div style={{ lineHeight: 1.55, fontSize: 12, color: CHROME.textPrimary }} dangerouslySetInnerHTML={{ __html: d.content }} />
+            ? <div style={{ lineHeight: 1.55, fontSize: 12, color: CHROME.textPrimary }} dangerouslySetInnerHTML={{ __html: normaliseQuillHtml(d.content) }} />
             : <p style={{ margin: 0, color: CHROME.textPlaceholder, fontStyle: 'italic', fontSize: 12 }}>None set</p>
         )}
       </Section>
@@ -563,8 +563,8 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
                 />
                 {legJsonError && <p style={{ margin: '3px 0 4px', fontSize: 10, color: STATUS_COLORS_BUTTON.orphan }}>⚠ {legJsonError}</p>}
                 <div style={{ display: 'flex', gap: 5 }}>
-                  <button onClick={() => importLegJson('replace')} style={{ background: STATUS_COLORS_BUTTON.terminal, color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Replace all</button>
-                  <button onClick={() => importLegJson('append')}  style={{ background: CHROME.textSecondary,    color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Append</button>
+                  <button onClick={() => importLegJson('replace')} style={{ background: STATUS_COLORS_BUTTON.terminal, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Replace all</button>
+                  <button onClick={() => importLegJson('append')}  style={{ background: CHROME.textSecondary,    color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Append</button>
                   <button onClick={() => setLegJsonMode(false)}    style={{ background: CHROME.btnNeutralBg,    color: CHROME.btnNeutralText, border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
                 </div>
               </div>
@@ -572,7 +572,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
 
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <button onClick={() => persistLeg(legDraft)} disabled={legSaving}
-                style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {legSaving ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => { setEditingLeg(false); setLegJsonMode(false); }}
@@ -643,7 +643,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
             />
             <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
               <button onClick={saveNotes} disabled={savingNotes}
-                style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                 {savingNotes ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => setEditingNotes(false)}
@@ -654,7 +654,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
           </div>
         ) : (
           d.adminNotes
-            ? <div style={{ margin: 0, lineHeight: 1.5, fontSize: 12, color: CHROME.textSecondary }} dangerouslySetInnerHTML={{ __html: d.adminNotes }} />
+            ? <div style={{ margin: 0, lineHeight: 1.5, fontSize: 12, color: CHROME.textSecondary }} dangerouslySetInnerHTML={{ __html: normaliseQuillHtml(d.adminNotes) }} />
             : <p style={{ margin: 0, color: CHROME.textPlaceholder, fontStyle: 'italic', fontSize: 12 }}>None</p>
         )}
       </Section>
@@ -700,7 +700,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
               ))}
               <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                 <button onClick={savePaths} disabled={savingPaths}
-                  style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
+                  style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>
                   {savingPaths ? 'Saving…' : 'Save'}
                 </button>
                 <button onClick={() => setEditingPaths(false)}
@@ -731,7 +731,7 @@ export default function EditorNodePanel({ node, outgoingEdges = [], onClose, edi
           rel="noopener noreferrer"
           style={{
             display: 'inline-block', marginTop: 14, padding: '7px 14px',
-            background: STATUS_COLORS_BUTTON.start, color: '#fff', borderRadius: 4,
+            background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, borderRadius: 4,
             textDecoration: 'none', fontSize: 12,
           }}
         >
@@ -789,7 +789,7 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (v: stri
           ['bold', 'italic', 'underline', 'strike'],
           [{ header: [1, 2, 3, false] }],
           [{ list: 'ordered' }, { list: 'bullet' }],
-          ['link', 'blockquote'],
+          ['link', 'blockquote', 'code-block'],
           ['clean'],
         ],
       },
@@ -803,7 +803,7 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (v: stri
   useEffect(() => {
     const q = quillRef.current;
     if (!q) return;
-    const html = value || '';
+    const html = denormaliseForQuill(value || '');
     if (q.root.innerHTML !== html) {
       q.root.innerHTML = html;
     }
@@ -898,7 +898,7 @@ function EditablePathRow({ answer, borderColour, textColour, bg, label, warn, ed
           />
           <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
             <button onClick={save} disabled={saving}
-              style={{ background: STATUS_COLORS_BUTTON.start, color: '#fff', border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
+              style={{ background: STATUS_COLORS_BUTTON.start, color: FD.btnActionText, border: 'none', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
               {saving ? 'Saving…' : 'Save'}
             </button>
             <button onClick={() => setEditing(false)}

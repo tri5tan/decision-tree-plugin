@@ -502,8 +502,8 @@ export function buildFlowEdges(apiEdges: ApiEdge[]): Edge<EdgeData>[] {
     target: e.target,
     type: "decision-edge",
     data: { label: e.label, answer: e.answer },
-    markerEnd: { type: "arrowclosed" as const, color: '#999' },
-    style: { stroke: '#999', strokeWidth: 1.5 },
+    markerEnd: { type: "arrowclosed" as const, color: CHROME.edgeStroke },
+    style: { stroke: CHROME.edgeStroke, strokeWidth: 1.5 },
     // No edges get a unique sourceHandle per target so ReactFlow tracks each independently.
     // Multiple No edges share the same visual 'No' handle dot — they fan out from it.
     sourceHandle: e.answer === 'No' ? `No-${e.target}` : e.answer,

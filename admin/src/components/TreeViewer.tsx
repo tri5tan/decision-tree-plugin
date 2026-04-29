@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -10,8 +10,10 @@ import { toPng } from 'html-to-image';
 import ViewerNode from './ViewerNode';
 import ViewerNodePanel from './ViewerNodePanel';
 import DecisionEdge from './DecisionEdge';
-import { STATUS_COLORS, CHROME, getNodeMinimapColor } from '../config/theme';
-import { getZoomBounds, getFitLevels, getLayoutConfig, getNodeWidth, getNodeHeight, PRINT_MAX_LEVELS } from '../config/tree-layout-config';import { getNodesInFirstNLevels } from '../utils/graphUtils';
+import Icon from './Icon';
+import { STATUS_COLORS, CHROME, FD, getNodeMinimapColor } from '../config/theme';
+import { getZoomBounds, getFitLevels, getLayoutConfig, getNodeWidth, getNodeHeight, PRINT_MAX_LEVELS } from '../config/tree-layout-config';
+import { getNodesInFirstNLevels } from '../utils/graphUtils';
 import useTreeViewerLoader from '../hooks/useTreeViewerLoader';
 import type { Node } from 'reactflow';
 import type { StepData } from '../types';
@@ -50,19 +52,19 @@ function sliceForPrint(dataUrl: string, title: string): Promise<string[]> {
         c.width  = imgW;
         c.height = pageH_src;
         const ctx = c.getContext('2d')!;
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = FD.cardBg;
         ctx.fillRect(0, 0, imgW, pageH_src);
         return [c, ctx];
       };
 
       const drawHeader = (ctx: CanvasRenderingContext2D) => {
-        ctx.fillStyle = '#999999';
+        ctx.fillStyle = CHROME.textSubtle;
         ctx.font = `${Math.round(10 * scale)}px Arial`;
         ctx.fillText('TAITUARĀ - COUNCIL TOOLKIT', Math.round(6 * scale), Math.round(14 * scale));
-        ctx.fillStyle = '#111111';
+        ctx.fillStyle = CHROME.textStrong;
         ctx.font = `bold ${Math.round(15 * scale)}px Arial`;
         ctx.fillText(title.length > 80 ? title.slice(0, 77) + '...' : title, Math.round(6 * scale), Math.round(36 * scale));
-        ctx.strokeStyle = '#dddddd';
+        ctx.strokeStyle = CHROME.panelBorder;
         ctx.lineWidth = scale;
         ctx.beginPath();
         ctx.moveTo(0, Math.round((HDR_H - 4) * scale));
@@ -139,7 +141,7 @@ function buildPopupHtml(slices: string[], title: string): string {
     `<style>\n` +
     `  @page { size:A4 portrait; margin:10mm; }\n` +
     `  * { margin:0; padding:0; box-sizing:border-box; }\n` +
-    `  body { background:#fff; }\n` +
+    `  body { background:${CHROME.cardBg}; }\n` +
     `</style>\n` +
     `</head><body>\n${imgs}\n` +
     `<script>${printScript}<\/script>\n` +
@@ -189,7 +191,7 @@ export default function TreeViewer({
   }, [nodes]);
 
   // ── Image capture (html-to-image) ──────────────────────────────────────────
-  const captureTreePng = (): Promise<string> => {
+  const captureTreePng = useCallback((): Promise<string> => {
     const rf = rfRef.current;
     if (!rf) return Promise.reject(new Error('React Flow not ready'));
 
@@ -218,7 +220,7 @@ export default function TreeViewer({
     if (!el) return Promise.reject(new Error('Viewport element not found'));
 
     return toPng(el, {
-      backgroundColor: '#ffffff',
+      backgroundColor: FD.cardBg,
       width: A4_W,
       height: captureH,
       pixelRatio: 2,
@@ -236,81 +238,78 @@ export default function TreeViewer({
         transform: `translate(${x}px, ${y}px) scale(${zoom})`,
       },
     });
-  };
+  }, []);
 
-  // ── fitAndPrint / downloadPng ───────────────────────────────────────────────
-  // Both exposed as window globals so the dev-page button and any WP print
-  // button can call them directly without touching React state.
+  const fitAndPrint = useCallback(() => {
+    setSelectedNode(null);
+    requestAnimationFrame(() => {
+      const title = moduleTitle ?? 'Decision Tree';
+      captureTreePng()
+        .then((dataUrl) => sliceForPrint(dataUrl, title))
+        .then((slices) => {
+          const popup = window.open('', '_blank', `width=800,height=1000`);
+          if (!popup) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
+          popup.document.write(buildPopupHtml(slices, title));
+          popup.document.close();
+        })
+        .catch((err) => { console.error('[TreeViewer] Print capture failed:', err); });
+    });
+  }, [captureTreePng, moduleTitle]);
+
+  const downloadPng = useCallback(() => {
+    setSelectedNode(null);
+    requestAnimationFrame(() => {
+      const title = moduleTitle ?? 'Decision Tree';
+      captureTreePng()
+        .then((dataUrl) => {
+          // Composite the branding header onto the raw capture before downloading.
+          // Reuses drawHeader logic from sliceForPrint so the output matches print.
+          const img = new Image();
+          img.onload = () => {
+            const scale  = img.naturalWidth / A4_W;
+            const hdrPx  = Math.round(HDR_H * scale);
+            const c      = document.createElement('canvas');
+            c.width  = img.naturalWidth;
+            c.height = img.naturalHeight + hdrPx;
+            const ctx = c.getContext('2d')!;
+            ctx.fillStyle = FD.cardBg;
+            ctx.fillRect(0, 0, c.width, c.height);
+            // header
+            ctx.fillStyle = CHROME.textSubtle;
+            ctx.font = `${Math.round(10 * scale)}px Arial`;
+            ctx.fillText('TAITUARĀ – COUNCIL TOOLKIT', Math.round(6 * scale), Math.round(14 * scale));
+            ctx.fillStyle = CHROME.textStrong;
+            ctx.font = `bold ${Math.round(15 * scale)}px Arial`;
+            ctx.fillText(title.length > 80 ? title.slice(0, 77) + '...' : title, Math.round(6 * scale), Math.round(36 * scale));
+            ctx.strokeStyle = CHROME.panelBorder;
+            ctx.lineWidth = scale;
+            ctx.beginPath();
+            ctx.moveTo(0, Math.round((HDR_H - 4) * scale));
+            ctx.lineTo(c.width, Math.round((HDR_H - 4) * scale));
+            ctx.stroke();
+            // tree
+            ctx.drawImage(img, 0, hdrPx);
+            const a = document.createElement('a');
+            a.href = c.toDataURL('image/png');
+            a.download = `${title.replace(/\s+/g, '-')}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          };
+          img.src = dataUrl;
+        })
+        .catch((err) => { console.error('[TreeViewer] PNG download failed:', err); });
+    });
+  }, [captureTreePng, moduleTitle]);
+
   useEffect(() => {
-    const fitAndPrint = () => {
-      setSelectedNode(null);
-      requestAnimationFrame(() => {
-        const title = moduleTitle ?? 'Decision Tree';
-        captureTreePng()
-          .then((dataUrl) => sliceForPrint(dataUrl, title))
-          .then((slices) => {
-            const popup = window.open('', '_blank', `width=800,height=1000`);
-            if (!popup) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-            popup.document.write(buildPopupHtml(slices, title));
-            popup.document.close();
-          })
-          .catch((err) => { console.error('[TreeViewer] Print capture failed:', err); });
-      });
-    };
-
-    const downloadPng = () => {
-      setSelectedNode(null);
-      requestAnimationFrame(() => {
-        const title = moduleTitle ?? 'Decision Tree';
-        captureTreePng()
-          .then((dataUrl) => {
-            // Composite the branding header onto the raw capture before downloading.
-            // Reuses drawHeader logic from sliceForPrint so the output matches print.
-            const img = new Image();
-            img.onload = () => {
-              const scale  = img.naturalWidth / A4_W;
-              const hdrPx  = Math.round(HDR_H * scale);
-              const c      = document.createElement('canvas');
-              c.width  = img.naturalWidth;
-              c.height = img.naturalHeight + hdrPx;
-              const ctx = c.getContext('2d')!;
-              ctx.fillStyle = '#ffffff';
-              ctx.fillRect(0, 0, c.width, c.height);
-              // header
-              ctx.fillStyle = '#999999';
-              ctx.font = `${Math.round(10 * scale)}px Arial`;
-              ctx.fillText('TAITUARĀ – COUNCIL TOOLKIT', Math.round(6 * scale), Math.round(14 * scale));
-              ctx.fillStyle = '#111111';
-              ctx.font = `bold ${Math.round(15 * scale)}px Arial`;
-              ctx.fillText(title.length > 80 ? title.slice(0, 77) + '...' : title, Math.round(6 * scale), Math.round(36 * scale));
-              ctx.strokeStyle = '#dddddd';
-              ctx.lineWidth = scale;
-              ctx.beginPath();
-              ctx.moveTo(0, Math.round((HDR_H - 4) * scale));
-              ctx.lineTo(c.width, Math.round((HDR_H - 4) * scale));
-              ctx.stroke();
-              // tree
-              ctx.drawImage(img, 0, hdrPx);
-              const a = document.createElement('a');
-              a.href = c.toDataURL('image/png');
-              a.download = `${title.replace(/\s+/g, '-')}.png`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            };
-            img.src = dataUrl;
-          })
-          .catch((err) => { console.error('[TreeViewer] PNG download failed:', err); });
-      });
-    };
-
     (window as any).dtFitAndPrint = fitAndPrint;
     (window as any).dtDownloadPng = downloadPng;
     return () => {
       delete (window as any).dtFitAndPrint;
       delete (window as any).dtDownloadPng;
     };
-  }, [moduleTitle]); // re-register when title loads so closures capture the fresh value
+  }, [fitAndPrint, downloadPng]); // re-register when title loads so closures capture the fresh value
 
   // Auto fitView on first load per module — same as editor
   useEffect(() => {
@@ -389,30 +388,54 @@ export default function TreeViewer({
       background: CHROME.panelBg,
       fontFamily: 'Roboto, sans-serif',
       display: 'flex',
-      position: 'relative',
+      flexDirection: 'column',
       border: `1px solid ${CHROME.panelBorder}`,
       borderRadius: 4,
       boxShadow: CHROME.cardShadow,
       overflow: 'hidden',
     }}>
       {/* No @media print styles needed — printing is done via a captured-image pop-up window */}
-      {/* Module title overlay — top-left of canvas, no background */}
-      {moduleTitle && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: 16,
-            fontSize: 15,
-            fontWeight: 700,
-            color: CHROME.textStrong,
-            pointerEvents: 'none',
-            zIndex: 5,
-          }}
-        >
-          {moduleTitle}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        padding: '16px 16px 8px',
+      }}>
+        {moduleTitle && (
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: CHROME.textStrong,
+            }}
+          >
+            {moduleTitle}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={fitAndPrint}
+            title="Print the decision tree"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              border: 'none',
+              borderRadius: 5,
+              background: FD.btnActionBg,
+              color: FD.btnActionText,
+              padding: '7px 12px',
+              fontSize: 13,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            }}
+          >
+            <Icon name="print" size={16} />
+            Print
+          </button>
         </div>
-      )}
+      </div>
       {loading && (
         <div style={{
           position: 'absolute', 
