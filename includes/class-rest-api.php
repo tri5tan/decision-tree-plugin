@@ -637,26 +637,40 @@ class DT_Rest_API {
         }
 
         // ── Remove a connection from the decisions repeater ─────────────────
-        // Body: { disconnect: { answer: "Yes"|"No" } }
+        // Body: { disconnect: { answer: "Yes"|"No", target_id?: 123 } }
         if ( isset( $body['disconnect'] ) ) {
             $answer    = sanitize_text_field( $body['disconnect']['answer'] ?? '' );
+            $target_id = absint( $body['disconnect']['target_id'] ?? 0 );
             $decisions = get_field( 'decisions', $post_id ) ?: [];
-            $decisions = array_values( array_filter( $decisions, fn( $r ) => ( $r['decision_answer'] ?? '' ) !== $answer ) );
+            $decisions = array_values( array_filter( $decisions, function( $r ) use ( $answer, $target_id ) {
+                if ( ( $r['decision_answer'] ?? '' ) !== $answer ) {
+                    return true;
+                }
+                if ( $target_id === 0 ) {
+                    return false;
+                }
+                return ! $this->decision_path_contains_target_id( $r['decision_path'] ?? [], $target_id );
+            } ) );
             update_field( 'decisions', $decisions, $post_id );
         }
 
         // ── Update a decision button label (decision_text) ───────────────────
-        // Body: { decision_label: { answer: "Yes"|"No", text: "New label" } }
+        // Body: { decision_label: { answer: "Yes"|"No", text: "New label", target_id?: 123 } }
         if ( isset( $body['decision_label'] ) ) {
             $answer     = sanitize_text_field( $body['decision_label']['answer'] ?? '' );
             $label_text = sanitize_textarea_field( $body['decision_label']['text']   ?? '' );
+            $target_id  = absint( $body['decision_label']['target_id'] ?? 0 );
             $decisions  = get_field( 'decisions', $post_id ) ?: [];
 
             foreach ( $decisions as &$row ) {
-                if ( ( $row['decision_answer'] ?? '' ) === $answer ) {
-                    $row['decision_text'] = $label_text;
-                    break;
+                if ( ( $row['decision_answer'] ?? '' ) !== $answer ) {
+                    continue;
                 }
+                if ( $target_id > 0 && ! $this->decision_path_contains_target_id( $row['decision_path'] ?? [], $target_id ) ) {
+                    continue;
+                }
+                $row['decision_text'] = $label_text;
+                break;
             }
             unset( $row );
             update_field( 'decisions', $decisions, $post_id );
@@ -687,8 +701,7 @@ class DT_Rest_API {
                 $found     = false;
 
                 foreach ( $decisions as &$row ) {
-                    if ( ( $row['decision_answer'] ?? '' ) === $answer ) {
-                        $row['decision_path'] = [ $target_id ];
+                    if ( ( $row['decision_answer'] ?? '' ) === $answer && $this->decision_path_contains_target_id( $row['decision_path'] ?? [], $target_id ) ) {
                         $found = true;
                         break;
                     }
@@ -696,7 +709,6 @@ class DT_Rest_API {
                 unset( $row );
 
                 if ( ! $found ) {
-                    // Add a new decision row if one doesn't exist for this answer yet
                     $decisions[] = [
                         'decision_answer' => $answer,
                         'decision_text'   => $answer,
@@ -800,6 +812,24 @@ class DT_Rest_API {
      * Check whether an ACF relationship field value contains a given post ID.
      * Handles the three formats ACF can return: object, array of objects/IDs, or scalar ID.
      */
+    private function decision_path_contains_target_id( $path, $target_id ) {
+        if ( empty( $path ) ) {
+            return false;
+        }
+
+        $target_id = (int) $target_id;
+        $items     = is_array( $path ) ? $path : [ $path ];
+
+        foreach ( $items as $item ) {
+            $id = is_object( $item ) ? (int) $item->ID : (int) $item;
+            if ( $id === $target_id ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function relationship_contains_id( $field_value, $target_id ) {
         if ( empty( $field_value ) ) return false;
 

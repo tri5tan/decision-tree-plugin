@@ -50,6 +50,16 @@ export const DEV_TREE_2 = {
       },
     },
     {
+      id: 'fa-6',
+      data: {
+        postId: 25, label: '4. Compliance Triage',
+        question: 'Which compliance issue was identified during the inspection?',
+        content: '<p>Inspectors may identify multiple possible non-compliance issues. This node branches into several specific follow-up pathways for the business.</p>',
+        rawContent: '', callout: 'This node is intentionally overloaded with many outgoing connections to stress-test the editor.', legislation: [], adminNotes: '',
+        linkStatus: 'complete', isTerminal: false,
+      },
+    },
+    {
       id: 'fa-5',
       data: {
         postId: 24, label: '5. Not registered — issue notice',
@@ -60,12 +70,101 @@ export const DEV_TREE_2 = {
         adminNotes: '', linkStatus: 'terminal', isTerminal: true,
       },
     },
+    {
+      id: 'fa-7',
+      data: {
+        postId: 26, label: '4a. Training required',
+        question: null,
+        content: '<p>Food handler training is required. Issue a notice requiring completion of approved training within 20 working days.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'fa-8',
+      data: {
+        postId: 27, label: '4b. Labelling non-compliant',
+        question: null,
+        content: '<p>Food labels do not meet regulatory requirements. Require corrective labelling and re-inspect within 10 working days.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'fa-9',
+      data: {
+        postId: 28, label: '4c. Temperature breach',
+        question: null,
+        content: '<p>Storage temperatures are outside the permitted range. Issue an immediate corrective action notice and verify controls.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'fa-10',
+      data: {
+        postId: 29, label: '4d. Cross-contamination risk',
+        question: null,
+        content: '<p>Cross-contamination hazards were identified. Require physical separation or procedure changes before re-inspection.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'fa-11',
+      data: {
+        postId: 30, label: '4e. Cleanliness notice',
+        question: null,
+        content: '<p>Premises cleanliness is inadequate. Issue a cleanliness notice and follow up with a re-check within 7 days.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'fa-12',
+      data: {
+        postId: 31, label: '4f. Sourcing audit required',
+        question: null,
+        content: '<p>Food sourcing records are incomplete. Require an audit of suppliers and source documentation.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'fa-13',
+      data: {
+        postId: 32, label: '4g. Allergen controls missing',
+        question: null,
+        content: '<p>Allergen management controls are not documented. Issue a corrective action to establish allergen procedures.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
+      id: 'fa-14',
+      data: {
+        postId: 33, label: '4h. Equipment maintenance required',
+        question: null,
+        content: '<p>Critical equipment is overdue maintenance. Require service or replacement and verify before reopening.</p>',
+        rawContent: '', callout: null, legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
   ],
   edges: [
     { id: 'e-fa1-fa3', source: 'fa-1', target: 'fa-3', label: 'No — not a food business', answer: 'No' },
     { id: 'e-fa1-fa2', source: 'fa-1', target: 'fa-2', label: 'Yes — check registration', answer: 'Yes' },
-    { id: 'e-fa2-fa4', source: 'fa-2', target: 'fa-4', label: 'Yes — registered and compliant', answer: 'Yes' },
+    { id: 'e-fa2-fa6', source: 'fa-2', target: 'fa-6', label: 'Yes — inspect specific compliance issues', answer: 'Yes' },
     { id: 'e-fa2-fa5', source: 'fa-2', target: 'fa-5', label: 'No — not registered', answer: 'No' },
+    { id: 'e-fa6-fa4', source: 'fa-6', target: 'fa-4', label: 'Yes — low-risk control pathway', answer: 'Yes' },
+    { id: 'e-fa6-fa7', source: 'fa-6', target: 'fa-7', label: 'No — training required', answer: 'No' },
+    { id: 'e-fa6-fa8', source: 'fa-6', target: 'fa-8', label: 'No — labelling non-compliant', answer: 'No' },
+    { id: 'e-fa6-fa9', source: 'fa-6', target: 'fa-9', label: 'No — temperature breach', answer: 'No' },
+    { id: 'e-fa6-fa10', source: 'fa-6', target: 'fa-10', label: 'No — cross-contamination risk', answer: 'No' },
+    { id: 'e-fa6-fa11', source: 'fa-6', target: 'fa-11', label: 'No — cleanliness notice', answer: 'No' },
+    { id: 'e-fa6-fa12', source: 'fa-6', target: 'fa-12', label: 'No — sourcing audit required', answer: 'No' },
+    { id: 'e-fa6-fa13', source: 'fa-6', target: 'fa-13', label: 'No — allergen controls missing', answer: 'No' },
+    { id: 'e-fa6-fa14', source: 'fa-6', target: 'fa-14', label: 'No — equipment maintenance required', answer: 'No' },
   ],
 };
 
@@ -460,6 +559,16 @@ export const DEV_TREE_5 = {
       },
     },
     {
+      id: 'pact-12',
+      data: {
+        postId: 81, label: '3. Seek Privacy Officer Advice',
+        question: null,
+        content: '<p>The collection is borderline. Refer to the council Privacy Officer before taking further action. Document the legal basis and next steps.</p>',
+        rawContent: '', callout: 'This path exercises a third outgoing connection from pact-3.', legislation: [], adminNotes: '',
+        linkStatus: 'terminal', isTerminal: true,
+      },
+    },
+    {
       id: 'pact-5',
       data: {
         postId: 74, label: '3. Individual Notified?',
@@ -544,6 +653,7 @@ export const DEV_TREE_5 = {
     { id: 'e-p1-p2',   source: 'pact-1',  target: 'pact-2',  label: 'No — not personal info', answer: 'No' },
     { id: 'e-p1-p3',   source: 'pact-1',  target: 'pact-3',  label: 'Yes — check lawful basis', answer: 'Yes' },
     { id: 'e-p3-p4',   source: 'pact-3',  target: 'pact-4',  label: 'No — no lawful basis', answer: 'No' },
+    { id: 'e-p3-p12',  source: 'pact-3',  target: 'pact-12', label: 'No — seek privacy officer advice', answer: 'No' },
     { id: 'e-p3-p5',   source: 'pact-3',  target: 'pact-5',  label: 'Yes — check notification', answer: 'Yes' },
     { id: 'e-p5-p6',   source: 'pact-5',  target: 'pact-6',  label: 'No — not notified, check exemption', answer: 'No' },
     { id: 'e-p5-p7',   source: 'pact-5',  target: 'pact-7',  label: 'Yes — notified, check consent', answer: 'Yes' },
