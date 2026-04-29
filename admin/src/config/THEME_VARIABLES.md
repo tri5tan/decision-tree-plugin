@@ -9,7 +9,6 @@ The plugin is moving toward a dedicated prefix for plugin-specific values, while
 - Use site-wide variables like `--primary` and `--primary-text` for brand-level colours.
 - Centralize fallback values in the theme layer, not in arbitrary component code.
 
-
 ## Shared site-level variables
 
 These values are intended to come from the core/site theme, not the plugin-specific contract.
@@ -18,6 +17,7 @@ These values are intended to come from the core/site theme, not the plugin-speci
 - `--primary-text`
 
 Optional upstream design tokens that plugin theme variables may also fall back to when available:
+
 - `--bg-surface`
 - `--bg-body`
 - `--text-body`
@@ -28,16 +28,23 @@ Optional upstream design tokens that plugin theme variables may also fall back t
 - `--secondary-10`
 - `--error-5`
 
+This repository includes a local reference copy of the parent WP theme token set at `data/theme/council_toolkit.css`. Use that file only as a reference for what variables are available from the host theme, not as source code for the plugin.
+
 Preferred usage in plugin JavaScript is via the theme constants exported from `theme.ts`.
 
+```ts
 export const GLOBAL = {
-  primary: 'var(--primary, #F09644)',
-  primaryText: 'var(--primary-text, #ffffff)',
+  primary: "var(--primary, #F09644)",
+  primaryText: "var(--primary-text, #ffffff)",
 };
+```
 
 Example plugin JS usage:
-- `background: GLOBAL.primary`
-- `color: GLOBAL.primaryText`
+
+```ts
+ background: GLOBAL.primary,
+ color: GLOBAL.primaryText
+```
 
 Only use raw CSS variable fallback expressions in low-level CSS when components cannot access the JS theme layer.
 
@@ -46,6 +53,7 @@ Only use raw CSS variable fallback expressions in low-level CSS when components 
 These tokens are specific to the flow diagram plugin and should use the `--fd-` prefix.
 
 ### Status palette
+
 - `--fd-status-start-base`
 - `--fd-status-start-bg`
 - `--fd-status-start-border`
@@ -72,6 +80,7 @@ These tokens are specific to the flow diagram plugin and should use the `--fd-` 
 - `--fd-status-orphan-text`
 
 ### Edge / decision pills
+
 - `--fd-edge-yes-bg`
 - `--fd-edge-yes-border`
 - `--fd-edge-yes-text`
@@ -80,6 +89,7 @@ These tokens are specific to the flow diagram plugin and should use the `--fd-` 
 - `--fd-edge-no-text`
 
 ### Chrome / UI shell
+
 - `--fd-canvas-bg`
 - `--fd-canvas-grid`
 - `--fd-panel-bg`
@@ -92,6 +102,7 @@ These tokens are specific to the flow diagram plugin and should use the `--fd-` 
 - `--fd-edge-stroke`
 
 ### Typography / text
+
 - `--fd-text-strong`
 - `--fd-text-primary`
 - `--fd-text-secondary`
@@ -101,25 +112,30 @@ These tokens are specific to the flow diagram plugin and should use the `--fd-` 
 - `--fd-text-error`
 
 ### Controls / buttons
+
 - `--fd-btn-neutral-bg`
 - `--fd-btn-neutral-text`
 - `--fd-btn-action-bg`
 - `--fd-btn-action-text`
 
 ### Inputs / forms
+
 - `--fd-input-border`
 - `--fd-input-bg-readonly`
 
 ### Overlay / modal
+
 - `--fd-overlay`
 - `--fd-modal-bg`
 - `--fd-modal-shadow`
 
 ### Status banners
+
 - `--fd-error-bg`
 - `--fd-info-bg`
 
 ### Misc
+
 - `--fd-row-bg`
 - `--fd-section-label`
 - `--fd-badge-bg`
@@ -177,7 +193,7 @@ The core framework should define these color variables in its CSS, using the plu
   --fd-panel-border: #ddd;
   --fd-card-bg: #fff;
   --fd-card-border-subtle: #e5e7eb;
-  --fd-card-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  --fd-card-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   --fd-handle-bg: #ddd;
   --fd-handle-border: #aaa;
   --fd-edge-stroke: #999;
@@ -192,15 +208,15 @@ The core framework should define these color variables in its CSS, using the plu
 
   --fd-btn-neutral-bg: #eee;
   --fd-btn-neutral-text: #333;
-  --fd-btn-action-bg: #F09644;
+  --fd-btn-action-bg: #f09644;
   --fd-btn-action-text: #ffffff;
 
   --fd-input-border: #ccc;
   --fd-input-bg-readonly: #e4edf5;
 
-  --fd-overlay: rgba(0,0,0,0.45);
+  --fd-overlay: rgba(0, 0, 0, 0.45);
   --fd-modal-bg: #fff;
-  --fd-modal-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  --fd-modal-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
 
   --fd-error-bg: #fde8e8;
   --fd-info-bg: #f2f8ff;
